@@ -38,7 +38,7 @@ const QuranPlayer: React.FC = () => {
   const [reciters] = useState<Reciter[]>([
     { id: 'ar.alafasy', name: 'Mishary Rashid Alafasy' },
     { id: 'ar.ghamdi', name: 'Saad Al Ghamdi' },
-    { id: 'ar.abdulbasitmujawwad', name: 'Abdul Basit Abdus Samad' },
+    { id: 'ar.abdulbasit', name: 'Abdul Basit Abdus Samad' },
     // Add more reciters...
   ]);
 

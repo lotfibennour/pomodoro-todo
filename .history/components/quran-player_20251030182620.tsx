@@ -1,11 +1,6 @@
 // components/quran-player.tsx
 'use client';
 import React, { useState, useRef, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Slider } from '@/components/ui/slider';
-import { Play, Pause, Square, Volume2 } from 'lucide-react';
 
 interface Surah {
   number: number;
@@ -30,20 +25,17 @@ const QuranPlayer: React.FC = () => {
   const [surahs] = useState<Surah[]>([
     { number: 1, name: 'الفاتحة', englishName: 'Al-Fatihah' },
     { number: 2, name: 'البقرة', englishName: 'Al-Baqarah' },
-    { number: 3, name: 'آل عمران', englishName: 'Ali Imran' },
-    // Add all 114 surahs...
     { number: 114, name: 'الناس', englishName: 'An-Nas' }
   ]);
 
   const [reciters] = useState<Reciter[]>([
     { id: 'ar.alafasy', name: 'Mishary Rashid Alafasy' },
     { id: 'ar.ghamdi', name: 'Saad Al Ghamdi' },
-    { id: 'ar.abdulbasitmujawwad', name: 'Abdul Basit Abdus Samad' },
-    // Add more reciters...
+    { id: 'ar.abdulbasit', name: 'Abdul Basit Abdus Samad' }
   ]);
 
   const getAudioUrl = (surahNumber: number, reciterId: string) => {
-    return `https://cdn.islamic.network/quran/audio-surah/128/${reciterId}/${surahNumber}.mp3`;
+    return `/mnt/cdn/islamic-network-cdn/quran/audio-surah/128/${reciterId}/${surahNumber}.mp3`;
   };
 
   const handlePlayPause = () => {
@@ -80,16 +72,17 @@ const QuranPlayer: React.FC = () => {
     }
   };
 
-  const handleProgressChange = (value: number[]) => {
+  const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (audioRef.current) {
-      const newTime = value[0];
+      const rect = e.currentTarget.getBoundingClientRect();
+      const percent = (e.clientX - rect.left) / rect.width;
+      const newTime = percent * duration;
       audioRef.current.currentTime = newTime;
       setCurrentTime(newTime);
     }
   };
 
-  const handleSurahChange = (value: string) => {
-    const surahNumber = parseInt(value);
+  const handleSurahChange = (surahNumber: number) => {
     setCurrentSurah(surahNumber);
     setCurrentTime(0);
     // Auto-play when surah changes
@@ -103,8 +96,8 @@ const QuranPlayer: React.FC = () => {
     }, 100);
   };
 
-  const handleReciterChange = (value: string) => {
-    setCurrentReciter(value);
+  const handleReciterChange = (reciterId: string) => {
+    setCurrentReciter(reciterId);
     setCurrentTime(0);
     // Auto-play when reciter changes
     setTimeout(() => {
@@ -122,6 +115,8 @@ const QuranPlayer: React.FC = () => {
     const secs = Math.floor(seconds % 60);
     return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
   };
+
+  const progressPercentage = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -150,7 +145,7 @@ const QuranPlayer: React.FC = () => {
   const currentReciterData = reciters.find(r => r.id === currentReciter);
 
   return (
-    <footer className="fixed bottom-0 left-0 right-0 z-50 w-full border-t bg-background/95 backdrop-blur-sm">
+    <footer className="fixed bottom-0 left-0 right-0 z-50 w-full border-t border-border bg-background/95 backdrop-blur-sm">
       {/* Audio Element */}
       <audio
         ref={audioRef}
@@ -181,39 +176,41 @@ const QuranPlayer: React.FC = () => {
         {/* Center: Playback controls and progress bar */}
         <div className="flex flex-col items-center gap-2">
           <div className="flex items-center gap-2">
-            <Button
-              variant="secondary"
-              size="icon"
+            <button
+              aria-label="Play/Pause"
               onClick={handlePlayPause}
-              className="h-10 w-10 rounded-full"
+              className="flex h-10 w-10 cursor-pointer items-center justify-center overflow-hidden rounded-full text-foreground bg-muted hover:bg-border transition-colors"
             >
-              {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
+              <span className="material-symbols-outlined">
+                {isPlaying ? 'pause' : 'play_arrow'}
+              </span>
+            </button>
+            <button
+              aria-label="Stop"
               onClick={handleStop}
-              className="h-10 w-10 rounded-full"
+              className="flex h-10 w-10 cursor-pointer items-center justify-center overflow-hidden rounded-full text-muted-foreground hover:bg-muted transition-colors"
             >
-              <Square className="h-5 w-5" />
-            </Button>
+              <span className="material-symbols-outlined">stop</span>
+            </button>
           </div>
-          
-          {/* Progress Bar */}
           <div className="hidden md:flex w-full max-w-xs lg:max-w-md items-center gap-3">
-            <span className="text-xs font-medium text-muted-foreground min-w-[40px]">
+            <p className="text-xs font-medium text-muted-foreground">
               {formatTime(currentTime)}
-            </span>
-            <Slider
-              value={[currentTime]}
-              max={duration}
-              step={1}
-              onValueChange={handleProgressChange}
-              className="flex-1"
-            />
-            <span className="text-xs font-medium text-muted-foreground min-w-[40px]">
+            </p>
+            <div 
+              className="flex h-1.5 flex-1 rounded-full bg-muted cursor-pointer"
+              onClick={handleProgressClick}
+            >
+              <div 
+                className="h-full rounded-full bg-primary relative transition-all duration-300"
+                style={{ width: `${progressPercentage}%` }}
+              >
+                <div className="absolute -right-1.5 -top-1.5 size-4 rounded-full bg-white border-2 border-primary cursor-pointer ring-2 ring-white hover:scale-110 transition-transform"></div>
+              </div>
+            </div>
+            <p className="text-xs font-medium text-muted-foreground">
               {formatTime(duration)}
-            </span>
+            </p>
           </div>
         </div>
 
@@ -221,41 +218,46 @@ const QuranPlayer: React.FC = () => {
         <div className="flex items-center gap-4">
           <div className="hidden lg:flex items-center gap-2">
             {/* Reciter Select */}
-            <Select value={currentReciter} onValueChange={handleReciterChange}>
-              <SelectTrigger className="w-[200px]">
-                <SelectValue placeholder="Select reciter" />
-              </SelectTrigger>
-              <SelectContent>
+            <div className="relative flex items-center">
+              <span className="material-symbols-outlined absolute left-3 text-muted-foreground text-lg">mic</span>
+              <select
+                value={currentReciter}
+                onChange={(e) => handleReciterChange(e.target.value)}
+                className="form-select w-full min-w-0 flex-1 resize-none overflow-hidden rounded-md text-foreground focus:outline-0 focus:ring-2 focus:ring-primary/50 border border-border bg-background focus:border-primary h-10 placeholder:text-muted-foreground pl-10 pr-8 text-sm font-normal appearance-none"
+              >
                 {reciters.map(reciter => (
-                  <SelectItem key={reciter.id} value={reciter.id}>
+                  <option key={reciter.id} value={reciter.id}>
                     {reciter.name}
-                  </SelectItem>
+                  </option>
                 ))}
-              </SelectContent>
-            </Select>
+              </select>
+              <span className="material-symbols-outlined absolute right-3 text-muted-foreground text-lg pointer-events-none">expand_more</span>
+            </div>
 
             {/* Surah Select */}
-            <Select value={currentSurah.toString()} onValueChange={handleSurahChange}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Select surah" />
-              </SelectTrigger>
-              <SelectContent>
+            <div className="relative flex items-center">
+              <span className="material-symbols-outlined absolute left-3 text-muted-foreground text-lg">book</span>
+              <select
+                value={currentSurah}
+                onChange={(e) => handleSurahChange(Number(e.target.value))}
+                className="form-select w-full min-w-0 flex-1 resize-none overflow-hidden rounded-md text-foreground focus:outline-0 focus:ring-2 focus:ring-primary/50 border border-border bg-background focus:border-primary h-10 placeholder:text-muted-foreground pl-10 pr-8 text-sm font-normal appearance-none"
+              >
                 {surahs.map(surah => (
-                  <SelectItem key={surah.number} value={surah.number.toString()}>
+                  <option key={surah.number} value={surah.number}>
                     {surah.number}. {surah.englishName}
-                  </SelectItem>
+                  </option>
                 ))}
-              </SelectContent>
-            </Select>
+              </select>
+              <span className="material-symbols-outlined absolute right-3 text-muted-foreground text-lg pointer-events-none">expand_more</span>
+            </div>
           </div>
 
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-10 w-10 rounded-full"
+          <button 
+            aria-label="Volume"
+            className="flex h-10 w-10 cursor-pointer items-center justify-center overflow-hidden rounded-full text-muted-foreground hover:bg-muted transition-colors"
           >
-            <Volume2 className="h-5 w-5" />
-          </Button>
+            <span className="material-symbols-outlined">volume_up</span>
+          </button>
         </div>
       </div>
     </footer>
