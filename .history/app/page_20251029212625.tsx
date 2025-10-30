@@ -345,9 +345,13 @@ export default function App() {
             
             {/* Navigation Links */}
             <div className="flex flex-col gap-2">
+              <Button variant="ghost" className="justify-start">
+                <Icon name="grid_view" />
+                <span className="ml-2">Dashboard</span>
+              </Button>
               <Button variant="secondary" className="justify-start">
                 <Icon name="check_circle" />
-                <span className="ml-2">Home</span>
+                <span className="ml-2">Tasks</span>
               </Button>
               <Button variant="ghost" className="justify-start" onClick={() => setIsSettingsModalOpen(true)}>
                 <Icon name="settings" />
@@ -398,6 +402,14 @@ export default function App() {
                 <p className="text-sm font-normal text-muted-foreground">aisha.k@email.com</p>
               </div>
             </div>
+            <Button variant="ghost" className="justify-start w-full">
+              <Icon name="help" />
+              <span className="ml-2">Help</span>
+            </Button>
+            <Button variant="ghost" className="justify-start w-full">
+              <Icon name="logout" />
+              <span className="ml-2">Logout</span>
+            </Button>
           </CardFooter>
         </Card>
       </Sheet>

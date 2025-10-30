@@ -347,7 +347,7 @@ export default function App() {
             <div className="flex flex-col gap-2">
               <Button variant="secondary" className="justify-start">
                 <Icon name="check_circle" />
-                <span className="ml-2">Home</span>
+                <span className="ml-2">Tasks</span>
               </Button>
               <Button variant="ghost" className="justify-start" onClick={() => setIsSettingsModalOpen(true)}>
                 <Icon name="settings" />
