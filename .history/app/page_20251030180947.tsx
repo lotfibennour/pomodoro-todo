@@ -566,6 +566,8 @@ export default function App() {
                 <p className="text-sm font-normal text-muted-foreground">aisha.k@email.com</p>
               </div>
             </div>
+                    <QuranPlayer />
+
           </CardFooter>
         </Card>
       </Sheet>
@@ -661,8 +663,6 @@ export default function App() {
             </CardContent>
           </Card>
         </section>
-        <QuranPlayer />
-
       </main>
 
       {/* --- Modals / Popups --- */}

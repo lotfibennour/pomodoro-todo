@@ -47,7 +47,6 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PrayTime } from 'praytime';
-import QuranPlayer from '@/components/quran-player';
 
 /* --- Types --- */
 interface Task {
@@ -572,6 +571,7 @@ export default function App() {
       
       {/* --- Main Content --- */}
       <main className="grid flex-1 grid-cols-12 gap-6 p-6 overflow-y-auto">
+        
         {/* Task List Section */}
         <section className="col-span-12 flex flex-col gap-4 md:col-span-12 lg:col-span-12">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -661,7 +661,6 @@ export default function App() {
             </CardContent>
           </Card>
         </section>
-        <QuranPlayer />
 
       </main>
 

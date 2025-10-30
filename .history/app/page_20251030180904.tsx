@@ -661,8 +661,6 @@ export default function App() {
             </CardContent>
           </Card>
         </section>
-        <QuranPlayer />
-
       </main>
 
       {/* --- Modals / Popups --- */}
