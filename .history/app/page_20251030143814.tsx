@@ -240,20 +240,18 @@ export default function App() {
 
   // Prayer Time API Fetching Logic
   useEffect(() => {
-    const checkPrayerMatch = () => {
-      const now = new Date();
-      const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-      if (currentTime === nextPrayer.time) {
-        setIsPrayerAlertOpen(true);
-        if (isTimerRunning) {
-          setWasTimerRunningBeforePrayer(true);
-          setIsTimerRunning(false);
-        }
+    // Mock prayer alert
+    const alertTimeout = setTimeout(() => {
+      // Pause timer if running
+      if (isTimerRunning) {
+        setWasTimerRunningBeforePrayer(true);
+        setIsTimerRunning(false);
       }
-    };
-    const interval = setInterval(checkPrayerMatch, 1000 * 30);
-    return () => clearInterval(interval);
-  }, [nextPrayer, isTimerRunning]);
+      setIsPrayerAlertOpen(true);
+    }, 10000); // Show prayer alert after 10 seconds for demo
+
+    return () => clearTimeout(alertTimeout);
+  }, [isTimerRunning]);
 
   // --- Event Handlers ---
 

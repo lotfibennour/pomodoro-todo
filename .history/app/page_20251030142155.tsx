@@ -87,68 +87,17 @@ const mockTasks: Task[] = [
 ];
  
 const praytime = new PrayTime();
-const times = praytime.method('France').location([50.531036, 2.639260]).timezone('Europe/Paris').format('24h').getTimes();
+const times = praytime.method('France').location([43, -80]).timezone('Europe/Paris').getTimes();
+console.log('Sunset : ' + times.sunset);
 
 const mockPrayerTimes: PrayerTimes = {
-  Fajr: times.fajr,
-  Dhuhr: times.dhuhr,
-  Asr: times.asr,
-  Maghrib: times.maghrib,
-  Isha: times.isha,
+  Fajr: '05:30',
+  Dhuhr: '12:15',
+  Asr: '15:45',
+  Maghrib: '18:00',
+  Isha: '19:30',
 };
 
-/**
- * Finds the next prayer time based on the current time.
- * @param {Object.<string, string>} prayerTimes - An object where keys are prayer names 
- * (e.g., 'Fajr') and values are the prayer times in 'HH:MM' 24-hour format.
- * @returns {{name: string, time: string} | null} - An object containing the name and 
- * time of the next prayer, or null if all prayers for the day have passed.
- */
-function getNextPrayerTime(prayerTimes: PrayerTimes): NextPrayer | null {
-  // 1. Get the current time in 'HH:MM' format for easy comparison.
-  const now = new Date();
-  const currentMinutes = now.getHours() * 60 + now.getMinutes();
-
-  // 2. Define the order of prayers to check
-  const prayerOrder = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
-
-  // 3. Iterate through the prayers in order
-  for (const prayerName of prayerOrder) {
-    const timeString = prayerTimes[prayerName];
-    
-    // Check if the prayer time exists and is in the correct format
-    if (!timeString || !timeString.match(/^\d{2}:\d{2}$/)) {
-      continue; // Skip if data is missing or malformed
-    }
-    
-    // Convert the prayer time string ('HH:MM') to total minutes since midnight
-    const [hours, minutes] = timeString.split(':').map(Number);
-    const prayerMinutes = hours * 60 + minutes;
-
-    // 4. Compare with the current time
-    if (prayerMinutes > currentMinutes) {
-      // Found the next prayer time
-      return { 
-        name: prayerName, 
-        time: timeString 
-      };
-    }
-  }
-
-  // 5. If no prayer is found (all prayers for the current day have passed)
-  // The next prayer will be **Fajr** of the **next day**.
-  // We return Fajr as the next prayer, as it's the start of the next cycle.
-  if (prayerTimes.Fajr) {
-    return { 
-        name: 'Fajr (Tomorrow)', 
-        time: prayerTimes.Fajr // Use the time from the current day's Fajr 
-                               // assuming the times repeat daily, which is common
-    };
-  }
-
-  return null; // Should only happen if the prayerTimes object is empty
-}
-const nextPrayerTime = getNextPrayerTime(mockPrayerTimes);
 // Icon component with proper typing
 const Icon = ({ name, className = "w-5 h-5" }: { name: IconName; className?: string }) => {
   const icons = {
@@ -186,7 +135,7 @@ export default function App() {
   const [tasks, setTasks] = useState<Task[]>(mockTasks);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [prayerTimes, setPrayerTimes] = useState<PrayerTimes>(mockPrayerTimes);
-  const [nextPrayer, setNextPrayer] = useState<NextPrayer>({ name: nextPrayerTime.name, time: nextPrayerTime.time });
+  const [nextPrayer, setNextPrayer] = useState<NextPrayer>({ name: 'Dhuhr', time: '12:15' });
 
   // Timer State
   const [timerMode, setTimerMode] = useState<TimerMode>('focus');
@@ -240,20 +189,18 @@ export default function App() {
 
   // Prayer Time API Fetching Logic
   useEffect(() => {
-    const checkPrayerMatch = () => {
-      const now = new Date();
-      const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-      if (currentTime === nextPrayer.time) {
-        setIsPrayerAlertOpen(true);
-        if (isTimerRunning) {
-          setWasTimerRunningBeforePrayer(true);
-          setIsTimerRunning(false);
-        }
+    // Mock prayer alert
+    const alertTimeout = setTimeout(() => {
+      // Pause timer if running
+      if (isTimerRunning) {
+        setWasTimerRunningBeforePrayer(true);
+        setIsTimerRunning(false);
       }
-    };
-    const interval = setInterval(checkPrayerMatch, 1000 * 30);
-    return () => clearInterval(interval);
-  }, [nextPrayer, isTimerRunning]);
+      setIsPrayerAlertOpen(true);
+    }, 10000); // Show prayer alert after 10 seconds for demo
+
+    return () => clearTimeout(alertTimeout);
+  }, [isTimerRunning]);
 
   // --- Event Handlers ---
 

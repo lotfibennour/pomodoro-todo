@@ -148,7 +148,7 @@ function getNextPrayerTime(prayerTimes: PrayerTimes): NextPrayer | null {
 
   return null; // Should only happen if the prayerTimes object is empty
 }
-const nextPrayerTime = getNextPrayerTime(mockPrayerTimes);
+const nextPrayer = getNextPrayerTime(mockPrayerTimes);
 // Icon component with proper typing
 const Icon = ({ name, className = "w-5 h-5" }: { name: IconName; className?: string }) => {
   const icons = {
@@ -186,7 +186,7 @@ export default function App() {
   const [tasks, setTasks] = useState<Task[]>(mockTasks);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [prayerTimes, setPrayerTimes] = useState<PrayerTimes>(mockPrayerTimes);
-  const [nextPrayer, setNextPrayer] = useState<NextPrayer>({ name: nextPrayerTime.name, time: nextPrayerTime.time });
+  const [nextPrayer, setNextPrayer] = useState<NextPrayer>({ name: 'Dhuhr', time: '12:15' });
 
   // Timer State
   const [timerMode, setTimerMode] = useState<TimerMode>('focus');
@@ -240,20 +240,18 @@ export default function App() {
 
   // Prayer Time API Fetching Logic
   useEffect(() => {
-    const checkPrayerMatch = () => {
-      const now = new Date();
-      const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-      if (currentTime === nextPrayer.time) {
-        setIsPrayerAlertOpen(true);
-        if (isTimerRunning) {
-          setWasTimerRunningBeforePrayer(true);
-          setIsTimerRunning(false);
-        }
+    // Mock prayer alert
+    const alertTimeout = setTimeout(() => {
+      // Pause timer if running
+      if (isTimerRunning) {
+        setWasTimerRunningBeforePrayer(true);
+        setIsTimerRunning(false);
       }
-    };
-    const interval = setInterval(checkPrayerMatch, 1000 * 30);
-    return () => clearInterval(interval);
-  }, [nextPrayer, isTimerRunning]);
+      setIsPrayerAlertOpen(true);
+    }, 10000); // Show prayer alert after 10 seconds for demo
+
+    return () => clearTimeout(alertTimeout);
+  }, [isTimerRunning]);
 
   // --- Event Handlers ---
 
