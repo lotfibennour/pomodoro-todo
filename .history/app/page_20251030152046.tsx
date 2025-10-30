@@ -47,7 +47,6 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PrayTime } from 'praytime';
-
 /* --- Types --- */
 interface Task {
   id: number;
@@ -81,7 +80,14 @@ type IconName =
   | 'skip_next' | 'list_alt' | 'add_circle' | 'delete' | 'minus' | 'plus'
   | 'sun' | 'moon' | 'sunrise' | 'sunset' | 'waypoint' | 'bell' | 'check';
 
-/* --- Prayer Time Utilities --- */
+/* --- Mock Data --- */
+const mockTasks: Task[] = [
+  { id: 1, name: 'Finalize project report', estimatedPomodoros: 4, completedPomodoros: 2, isComplete: false, priority: 'high' },
+  { id: 2, name: 'Draft weekly update email', estimatedPomodoros: 2, completedPomodoros: 1, isComplete: false, priority: 'medium' },
+  { id: 3, name: 'Review Q3 financial statements', estimatedPomodoros: 3, completedPomodoros: 3, isComplete: true, priority: 'high' },
+  { id: 4, name: 'Water the plants', estimatedPomodoros: 1, completedPomodoros: 1, isComplete: true, priority: 'low' },
+];
+ 
 const praytime = new PrayTime();
 const times = praytime.method('France').location([50.531036, 2.639260]).timezone('Europe/Paris').format('24h').getTimes();
 
@@ -95,24 +101,35 @@ const mockPrayerTimes: PrayerTimes = {
 
 /**
  * Finds the next prayer time based on the current time.
+ * @param {Object.<string, string>} prayerTimes - An object where keys are prayer names 
+ * (e.g., 'Fajr') and values are the prayer times in 'HH:MM' 24-hour format.
+ * @returns {{name: string, time: string} | null} - An object containing the name and 
+ * time of the next prayer, or null if all prayers for the day have passed.
  */
 function getNextPrayerTime(prayerTimes: PrayerTimes): NextPrayer | null {
+  // 1. Get the current time in 'HH:MM' format for easy comparison.
   const now = new Date();
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
 
+  // 2. Define the order of prayers to check
   const prayerOrder = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
 
+  // 3. Iterate through the prayers in order
   for (const prayerName of prayerOrder) {
     const timeString = prayerTimes[prayerName];
     
+    // Check if the prayer time exists and is in the correct format
     if (!timeString || !timeString.match(/^\d{2}:\d{2}$/)) {
-      continue;
+      continue; // Skip if data is missing or malformed
     }
     
+    // Convert the prayer time string ('HH:MM') to total minutes since midnight
     const [hours, minutes] = timeString.split(':').map(Number);
     const prayerMinutes = hours * 60 + minutes;
 
+    // 4. Compare with the current time
     if (prayerMinutes > currentMinutes) {
+      // Found the next prayer time
       return { 
         name: prayerName, 
         time: timeString 
@@ -120,18 +137,20 @@ function getNextPrayerTime(prayerTimes: PrayerTimes): NextPrayer | null {
     }
   }
 
+  // 5. If no prayer is found (all prayers for the current day have passed)
+  // The next prayer will be **Fajr** of the **next day**.
+  // We return Fajr as the next prayer, as it's the start of the next cycle.
   if (prayerTimes.Fajr) {
     return { 
         name: 'Fajr (Tomorrow)', 
-        time: prayerTimes.Fajr
+        time: prayerTimes.Fajr // Use the time from the current day's Fajr 
+                               // assuming the times repeat daily, which is common
     };
   }
 
-  return null;
+  return null; // Should only happen if the prayerTimes object is empty
 }
-
 const nextPrayerTime = getNextPrayerTime(mockPrayerTimes);
-
 // Icon component with proper typing
 const Icon = ({ name, className = "w-5 h-5" }: { name: IconName; className?: string }) => {
   const icons = {
@@ -166,14 +185,10 @@ const Icon = ({ name, className = "w-5 h-5" }: { name: IconName; className?: str
 
 /* --- Main App Component --- */
 export default function App() {
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const [tasks, setTasks] = useState<Task[]>(mockTasks);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [prayerTimes, setPrayerTimes] = useState<PrayerTimes>(mockPrayerTimes);
-  const [nextPrayer, setNextPrayer] = useState<NextPrayer>({ 
-    name: nextPrayerTime?.name || 'Fajr', 
-    time: nextPrayerTime?.time || '06:00' 
-  });
-  const [isLoading, setIsLoading] = useState(true);
+  const [nextPrayer, setNextPrayer] = useState<NextPrayer>({ name: nextPrayerTime.name, time: nextPrayerTime.time });
 
   // Timer State
   const [timerMode, setTimerMode] = useState<TimerMode>('focus');
@@ -191,73 +206,29 @@ export default function App() {
   const [newTaskName, setNewTaskName] = useState("");
   const [editingTask, setEditingTask] = useState<Task | null>(null);
 
-  // Fetch tasks from API
-  const fetchTasks = async () => {
-    try {
-      setIsLoading(true);
-      const response = await fetch('/api/tasks');
-      if (response.ok) {
-        const tasksData = await response.json();
-        setTasks(tasksData);
-      } else {
-        console.error('Failed to fetch tasks');
-      }
-    } catch (error) {
-      console.error('Error fetching tasks:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Load tasks on component mount
-  useEffect(() => {
-    fetchTasks();
-  }, []);
-
   // Timer Countdown Logic
   useEffect(() => {
     if (!isTimerRunning || !isTimerModalOpen) return;
 
     if (timeLeft <= 0) {
       setIsTimerRunning(false);
-      // Handle timer completion - update task in database
+      // Handle timer completion
       if (timerMode === 'focus' && selectedTask) {
-        const updateTaskPomodoros = async () => {
-          const updatedTask = {
-            ...selectedTask,
-            completedPomodoros: selectedTask.completedPomodoros + 1,
-          };
-
-          // Check if task is now complete
-          if (updatedTask.completedPomodoros >= updatedTask.estimatedPomodoros) {
-            updatedTask.isComplete = true;
-          }
-
-          try {
-            const response = await fetch(`/api/tasks/${selectedTask.id}`, {
-              method: 'PUT',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify(updatedTask),
-            });
-
-            if (response.ok) {
-              const result = await response.json();
-              setTasks(prev => prev.map(t => t.id === selectedTask.id ? result : t));
-              // Update selected task if it's still the same
-              if (selectedTask && selectedTask.id === result.id) {
-                setSelectedTask(result);
-              }
-            } else {
-              console.error('Failed to update task pomodoros');
-            }
-          } catch (error) {
-            console.error('Error updating task pomodoros:', error);
-          }
-        };
-
-        updateTaskPomodoros();
+        const updatedTasks = tasks.map(task =>
+          task.id === selectedTask.id
+            ? { ...task, completedPomodoros: task.completedPomodoros + 1 }
+            : task
+        );
+        setTasks(updatedTasks);
+        
+        // Check if task is now complete
+        const currentTask = updatedTasks.find(t => t.id === selectedTask.id);
+        if (currentTask && currentTask.completedPomodoros >= currentTask.estimatedPomodoros) {
+          const finalUpdatedTasks = updatedTasks.map(task =>
+            task.id === selectedTask.id ? { ...task, isComplete: true } : task
+          );
+          setTasks(finalUpdatedTasks);
+        }
       }
       return;
     }
@@ -267,7 +238,7 @@ export default function App() {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [isTimerRunning, timeLeft, isTimerModalOpen, timerMode, selectedTask]);
+  }, [isTimerRunning, timeLeft, isTimerModalOpen, timerMode, selectedTask, tasks]);
 
   // Prayer Time API Fetching Logic
   useEffect(() => {
@@ -288,108 +259,41 @@ export default function App() {
 
   // --- Event Handlers ---
 
-  const handleAddTask = async (e: React.FormEvent) => {
+  const handleAddTask = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTaskName.trim()) return;
-    
-    try {
-      const response = await fetch('/api/tasks', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: newTaskName,
-          estimatedPomodoros: 1,
-          completedPomodoros: 0,
-          isComplete: false,
-          priority: 'medium',
-        }),
-      });
-
-      if (response.ok) {
-        const newTask = await response.json();
-        setTasks(prev => [newTask, ...prev]);
-        setNewTaskName("");
-        setIsTaskModalOpen(false);
-      } else {
-        console.error('Failed to create task');
-      }
-    } catch (error) {
-      console.error('Error creating task:', error);
-    }
+    const newTask: Task = {
+      id: Math.max(0, ...tasks.map(t => t.id)) + 1,
+      name: newTaskName,
+      estimatedPomodoros: 1,
+      completedPomodoros: 0,
+      isComplete: false,
+      priority: 'medium',
+    };
+    setTasks([...tasks, newTask]);
+    setNewTaskName("");
+    setIsTaskModalOpen(false);
   };
 
-  const handleUpdateTask = async (e: React.FormEvent) => {
+  const handleUpdateTask = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingTask) return;
-    
-    try {
-      const response = await fetch(`/api/tasks/${editingTask.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(editingTask),
-      });
-
-      if (response.ok) {
-        const updatedTask = await response.json();
-        setTasks(prev => prev.map(t => t.id === editingTask.id ? updatedTask : t));
-        setIsTaskModalOpen(false);
-        setEditingTask(null);
-      } else {
-        console.error('Failed to update task');
-      }
-    } catch (error) {
-      console.error('Error updating task:', error);
-    }
+    setTasks(tasks.map(t => t.id === editingTask.id ? editingTask : t));
+    setIsTaskModalOpen(false);
+    setEditingTask(null);
   };
   
-  const handleDeleteTask = async () => {
+  const handleDeleteTask = () => {
     if (!editingTask) return;
-    
-    try {
-      const response = await fetch(`/api/tasks/${editingTask.id}`, {
-        method: 'DELETE',
-      });
-
-      if (response.ok) {
-        setTasks(prev => prev.filter(t => t.id !== editingTask.id));
-        setIsDeleteModalOpen(false);
-        setEditingTask(null);
-      } else {
-        console.error('Failed to delete task');
-      }
-    } catch (error) {
-      console.error('Error deleting task:', error);
-    }
+    setTasks(tasks.filter(t => t.id !== editingTask.id));
+    setIsDeleteModalOpen(false);
+    setEditingTask(null);
   };
 
-  const handleToggleTaskComplete = async (taskId: number) => {
-    const task = tasks.find(t => t.id === taskId);
-    if (!task) return;
-
-    const updatedTask = { ...task, isComplete: !task.isComplete };
-    
-    try {
-      const response = await fetch(`/api/tasks/${taskId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(updatedTask),
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        setTasks(prev => prev.map(t => t.id === taskId ? result : t));
-      } else {
-        console.error('Failed to update task');
-      }
-    } catch (error) {
-      console.error('Error updating task:', error);
-    }
+  const handleToggleTaskComplete = (taskId: number) => {
+    setTasks(tasks.map(t => 
+      t.id === taskId ? { ...t, isComplete: !t.isComplete } : t
+    ));
   };
 
   const handleEditTask = (task: Task) => {
@@ -484,18 +388,6 @@ export default function App() {
     }
   };
 
-  // Add loading state
-  if (isLoading) {
-    return (
-      <div className="flex h-screen w-full items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-4">
-          <RefreshCw className="h-8 w-8 animate-spin text-primary" />
-          <p className="text-muted-foreground">Loading tasks...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="flex h-screen w-full bg-background font-sans text-foreground">
       
@@ -575,7 +467,7 @@ export default function App() {
         {/* Task List Section */}
         <section className="col-span-12 flex flex-col gap-4 md:col-span-12 lg:col-span-12">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h1 className="text-4xl font-black tracking-tight">Today&apos;s Focus</h1>
+            <h1 className="text-4xl font-black tracking-tight">Today's Focus</h1>
             <Button onClick={openAddTaskModal}>
               <Icon name="add_circle" />
               <span className="ml-2">Add New Task</span>
@@ -596,66 +488,58 @@ export default function App() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {tasks.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                        No tasks yet. Add your first task to get started!
+                  {tasks.map(task => (
+                    <TableRow key={task.id}>
+                      <TableCell>
+                        <input 
+                          className="h-5 w-5 rounded-md border-primary text-primary focus:ring-primary" 
+                          type="checkbox"
+                          checked={task.isComplete}
+                          onChange={() => handleToggleTaskComplete(task.id)}
+                        />
+                      </TableCell>
+                      <TableCell 
+                        className={`font-medium ${task.isComplete ? 'text-muted-foreground line-through' : ''}`}
+                      >
+                        {task.name}
+                      </TableCell>
+                      <TableCell className="text-center text-muted-foreground">
+                        <span className="font-semibold text-foreground">{task.completedPomodoros}</span> / {task.estimatedPomodoros} 🍅
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Badge variant={getPriorityBadgeVariant(task.priority)}>
+                          {task.priority}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <div className="flex justify-center gap-2">
+                          {!task.isComplete && (
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => handleStartPomodoro(task)}
+                            >
+                              Start
+                            </Button>
+                          )}
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleEditTask(task)}
+                          >
+                            Edit
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => openDeleteModal(task)}
+                          >
+                            <Icon name="delete" className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
-                  ) : (
-                    tasks.map(task => (
-                      <TableRow key={task.id}>
-                        <TableCell>
-                          <input 
-                            className="h-5 w-5 rounded-md border-primary text-primary focus:ring-primary" 
-                            type="checkbox"
-                            checked={task.isComplete}
-                            onChange={() => handleToggleTaskComplete(task.id)}
-                          />
-                        </TableCell>
-                        <TableCell 
-                          className={`font-medium ${task.isComplete ? 'text-muted-foreground line-through' : ''}`}
-                        >
-                          {task.name}
-                        </TableCell>
-                        <TableCell className="text-center text-muted-foreground">
-                          <span className="font-semibold text-foreground">{task.completedPomodoros}</span> / {task.estimatedPomodoros} 🍅
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <Badge variant={getPriorityBadgeVariant(task.priority)}>
-                            {task.priority}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <div className="flex justify-center gap-2">
-                            {!task.isComplete && (
-                              <Button 
-                                variant="outline" 
-                                size="sm"
-                                onClick={() => handleStartPomodoro(task)}
-                              >
-                                Start
-                              </Button>
-                            )}
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              onClick={() => handleEditTask(task)}
-                            >
-                              Edit
-                            </Button>
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              onClick={() => openDeleteModal(task)}
-                            >
-                              <Icon name="delete" className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
+                  ))}
                 </TableBody>
               </Table>
             </CardContent>

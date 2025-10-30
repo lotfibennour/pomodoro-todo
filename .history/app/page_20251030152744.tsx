@@ -575,7 +575,7 @@ export default function App() {
         {/* Task List Section */}
         <section className="col-span-12 flex flex-col gap-4 md:col-span-12 lg:col-span-12">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h1 className="text-4xl font-black tracking-tight">Today&apos;s Focus</h1>
+            <h1 className="text-4xl font-black tracking-tight">Today's Focus</h1>
             <Button onClick={openAddTaskModal}>
               <Icon name="add_circle" />
               <span className="ml-2">Add New Task</span>
