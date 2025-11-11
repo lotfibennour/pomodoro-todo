@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
-import { Play, Pause, Square, Volume2 } from 'lucide-react';
+import { Play, Pause, Square, Volume2, VolumeX } from 'lucide-react';
 
 interface Surah {
   number: number;
@@ -25,6 +25,9 @@ const QuranPlayer: React.FC = () => {
   const [duration, setDuration] = useState(0);
   const [currentSurah, setCurrentSurah] = useState<number>(1);
   const [currentReciter, setCurrentReciter] = useState<string>('ar.alafasy');
+  const [isSeeking, setIsSeeking] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
+  const [volume, setVolume] = useState(1);
   
   // Mock data - replace with your JSON fetching
   const [surahs] = useState<Surah[]>([
@@ -68,23 +71,62 @@ const QuranPlayer: React.FC = () => {
     }
   };
 
-  const handleTimeUpdate = () => {
+  const handleMuteToggle = () => {
     if (audioRef.current) {
-      setCurrentTime(audioRef.current.currentTime);
+      audioRef.current.muted = !isMuted;
+      setIsMuted(!isMuted);
+    }
+  };
+
+  const handleTimeUpdate = () => {
+    // Only update currentTime if user is not seeking
+    if (audioRef.current && !isSeeking) {
+      const time = audioRef.current.currentTime;
+      if (isFinite(time) && time >= 0) {
+        setCurrentTime(time);
+      }
     }
   };
 
   const handleLoadedMetadata = () => {
-    if (audioRef.current) {
+    if (audioRef.current && isFinite(audioRef.current.duration)) {
       setDuration(audioRef.current.duration);
     }
   };
 
   const handleProgressChange = (value: number[]) => {
+    if (!isSeeking) {
+      setIsSeeking(true);
+    }
+    const newTime = value[0];
+    if (isFinite(newTime) && newTime >= 0) {
+      setCurrentTime(newTime);
+    }
+  };
+
+  const handleProgressCommit = (value: number[]) => {
     if (audioRef.current) {
       const newTime = value[0];
-      audioRef.current.currentTime = newTime;
-      setCurrentTime(newTime);
+      if (isFinite(newTime) && newTime >= 0 && newTime <= duration) {
+        audioRef.current.currentTime = newTime;
+        setCurrentTime(newTime);
+      }
+    }
+    // Small delay to ensure audio has seeked before allowing updates again
+    setTimeout(() => {
+      setIsSeeking(false);
+    }, 50);
+  };
+
+  const handleSeekEnd = () => {
+    if (audioRef.current && isSeeking) {
+      const newTime = currentTime;
+      if (isFinite(newTime) && newTime >= 0 && newTime <= duration) {
+        audioRef.current.currentTime = newTime;
+      }
+      setTimeout(() => {
+        setIsSeeking(false);
+      }, 50);
     }
   };
 
@@ -118,6 +160,7 @@ const QuranPlayer: React.FC = () => {
   };
 
   const formatTime = (seconds: number) => {
+    if (!isFinite(seconds)) return '00:00';
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
@@ -158,104 +201,119 @@ const QuranPlayer: React.FC = () => {
         preload="metadata"
       />
       
-      <div className="container mx-auto flex h-24 items-center justify-between px-4 md:px-6">
-        {/* Left: Album art and track info */}
-        <div className="flex items-center gap-4">
-          <div className="flex-shrink-0">
-            <img 
-              alt="Album Art" 
-              className="h-16 w-16 rounded-md object-cover" 
-              src="https://lh3.googleusercontent.com/aida-public/AB6AXuCSWe9q8rs5hr-V19TlzPynln9PP69qzggayepN8nVdHCvw2Ca8YQm-m0D9St1CHdyx5E9e9ouvphOxyUK3wh6Y_3BPPlMIMIASSPAlvG6ehCvmTHochEPYQhDknxaJFJZdZgq_PAe0AhhIFTPxkGOFxdoXMLbsfRze1BASTqq_eg4p946gbcdd1jFavI9O-FU_WzRHQM-8gjX941hydbXX4bcwgd_kcq9PgJx4yjK-iGfk3H_KLby5aOghLUmTJ4hctRdb_ZPudUpk"
-            />
+      <div className="container mx-auto px-4 md:px-6">
+        <div className="flex h-20 md:h-24 items-center justify-between gap-4">
+          {/* Left: Album art and track info */}
+          <div className="flex items-center gap-3 min-w-0 flex-shrink">
+            <div className="flex-shrink-0">
+              <img 
+                alt="Quran Cover" 
+                className="h-12 w-12 md:h-16 md:w-16 rounded-md object-cover shadow-sm" 
+                src="https://lh3.googleusercontent.com/aida-public/AB6AXuCSWe9q8rs5hr-V19TlzPynln9PP69qzggayepN8nVdHCvw2Ca8YQm-m0D9St1CHdyx5E9e9ouvphOxyUK3wh6Y_3BPPlMIMIASSPAlvG6ehCvmTHochEPYQhDknxaJFJZdZgq_PAe0AhhIFTPxkGOFxdoXMLbsfRze1BASTqq_eg4p946gbcdd1jFavI9O-FU_WzRHQM-8gjX941hydbXX4bcwgd_kcq9PgJx4yjK-iGfk3H_KLby5aOghLUmTJ4hctRdb_ZPudUpk"
+              />
+            </div>
+            <div className="hidden sm:block min-w-0 flex-1">
+              <p className="font-semibold text-sm md:text-base text-foreground truncate">
+                {currentSurahData?.englishName || `Surah ${currentSurah}`}
+              </p>
+              <p className="text-xs md:text-sm text-muted-foreground truncate">
+                {currentReciterData?.name || 'Reciter'}
+              </p>
+            </div>
           </div>
-          <div className="hidden sm:block">
-            <p className="font-bold text-foreground">
-              {currentSurahData?.englishName || `Surah ${currentSurah}`}
-            </p>
-            <p className="text-sm text-muted-foreground">
-              {currentReciterData?.name || 'Reciter'}
-            </p>
-          </div>
-        </div>
 
-        {/* Center: Playback controls and progress bar */}
-        <div className="flex flex-col items-center gap-2">
-          <div className="flex items-center gap-2">
-            <Button
-              variant="secondary"
-              size="icon"
-              onClick={handlePlayPause}
-              className="h-10 w-10 rounded-full"
-            >
-              {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
-            </Button>
+          {/* Center: Playback controls and progress bar */}
+          <div className="flex flex-col gap-2 w-full max-w-3xl flex-1">
+            <div className="flex items-center justify-center gap-2">
+              <Button
+                variant="secondary"
+                size="icon"
+                onClick={handlePlayPause}
+                className="h-9 w-9 md:h-10 md:w-10 rounded-full"
+              >
+                {isPlaying ? (
+                  <Pause className="h-4 w-4 md:h-5 md:w-5" />
+                ) : (
+                  <Play className="h-4 w-4 md:h-5 md:w-5 ml-0.5" />
+                )}
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleStop}
+                className="h-9 w-9 md:h-10 md:w-10 rounded-full"
+              >
+                <Square className="h-4 w-4 md:h-5 md:w-5" />
+              </Button>
+            </div>
+            
+            {/* Progress Bar */}
+            <div className="hidden md:flex w-full items-center gap-3">
+              <span className="text-xs font-medium text-muted-foreground min-w-[40px] tabular-nums">
+                {formatTime(currentTime)}
+              </span>
+              <Slider
+                value={[currentTime]}
+                max={duration || 100}
+                step={0.1}
+                onValueChange={handleProgressChange}
+                onPointerDown={() => setIsSeeking(true)}
+                onPointerUp={handleSeekEnd}
+                onPointerLeave={handleSeekEnd}
+                className="flex-1 cursor-pointer"
+                disabled={!duration}
+              />
+              <span className="text-xs font-medium text-muted-foreground min-w-[40px] tabular-nums">
+                {formatTime(duration)}
+              </span>
+            </div>
+          </div>
+
+          {/* Right: Reciter and Surah selectors, volume */}
+          <div className="flex items-center gap-2 md:gap-3 flex-shrink">
+            <div className="hidden lg:flex items-center gap-2">
+              {/* Reciter Select */}
+              <Select value={currentReciter} onValueChange={handleReciterChange}>
+                <SelectTrigger className="w-[180px] xl:w-[200px]">
+                  <SelectValue placeholder="Select reciter" />
+                </SelectTrigger>
+                <SelectContent>
+                  {reciters.map(reciter => (
+                    <SelectItem key={reciter.id} value={reciter.id}>
+                      {reciter.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {/* Surah Select */}
+              <Select value={currentSurah.toString()} onValueChange={handleSurahChange}>
+                <SelectTrigger className="w-[160px] xl:w-[180px]">
+                  <SelectValue placeholder="Select surah" />
+                </SelectTrigger>
+                <SelectContent>
+                  {surahs.map(surah => (
+                    <SelectItem key={surah.number} value={surah.number.toString()}>
+                      {surah.number}. {surah.englishName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             <Button
               variant="ghost"
               size="icon"
-              onClick={handleStop}
-              className="h-10 w-10 rounded-full"
+              onClick={handleMuteToggle}
+              className="h-9 w-9 md:h-10 md:w-10 rounded-full"
             >
-              <Square className="h-5 w-5" />
+              {isMuted ? (
+                <VolumeX className="h-4 w-4 md:h-5 md:w-5" />
+              ) : (
+                <Volume2 className="h-4 w-4 md:h-5 md:w-5" />
+              )}
             </Button>
           </div>
-          
-          {/* Progress Bar */}
-          <div className="hidden md:flex w-full max-w-xs lg:max-w-md items-center gap-3">
-            <span className="text-xs font-medium text-muted-foreground min-w-[40px]">
-              {formatTime(currentTime)}
-            </span>
-            <Slider
-              value={[currentTime]}
-              max={duration}
-              step={1}
-              onValueChange={handleProgressChange}
-              className="flex-1"
-            />
-            <span className="text-xs font-medium text-muted-foreground min-w-[40px]">
-              {formatTime(duration)}
-            </span>
-          </div>
-        </div>
-
-        {/* Right: Reciter and Surah selectors, volume */}
-        <div className="flex items-center gap-4">
-          <div className="hidden lg:flex items-center gap-2">
-            {/* Reciter Select */}
-            <Select value={currentReciter} onValueChange={handleReciterChange}>
-              <SelectTrigger className="w-[200px]">
-                <SelectValue placeholder="Select reciter" />
-              </SelectTrigger>
-              <SelectContent>
-                {reciters.map(reciter => (
-                  <SelectItem key={reciter.id} value={reciter.id}>
-                    {reciter.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            {/* Surah Select */}
-            <Select value={currentSurah.toString()} onValueChange={handleSurahChange}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Select surah" />
-              </SelectTrigger>
-              <SelectContent>
-                {surahs.map(surah => (
-                  <SelectItem key={surah.number} value={surah.number.toString()}>
-                    {surah.number}. {surah.englishName}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-10 w-10 rounded-full"
-          >
-            <Volume2 className="h-5 w-5" />
-          </Button>
         </div>
       </div>
     </footer>

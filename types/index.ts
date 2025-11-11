@@ -1,4 +1,7 @@
 // types/index.ts
+
+// ------------------- Your existing app types -------------------
+
 export interface Task {
   id: string;
   title: string;

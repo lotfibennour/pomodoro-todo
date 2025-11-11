@@ -12,7 +12,6 @@ import {
   Flag,
   ListTodo,
   Minus,
-  Mosque,
   Pause,
   Play,
   Plus,
@@ -59,6 +58,8 @@ interface Task {
   priority: 'low' | 'medium' | 'high';
   createdAt?: string;
   updatedAt?: string;
+  googleTaskId?: string; // Add this field
+  notes?: string; // Add this field
 }
 
 interface PrayerTimes {
@@ -190,7 +191,12 @@ export default function App() {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   
   const [newTaskName, setNewTaskName] = useState("");
+  const [newTaskPriority, setnewTaskPriority] = useState("");
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [lastSync, setLastSync] = useState<Date | null>(null);
+  const [googleAuthStatus, setGoogleAuthStatus] = useState<'idle' | 'success' | 'error'>('idle');
 
   // Fetch tasks from API
   const fetchTasks = async () => {
@@ -287,6 +293,99 @@ export default function App() {
     return () => clearInterval(interval);
   }, [nextPrayer, isTimerRunning]);
 
+// Add this useEffect for token management and URL handling
+useEffect(() => {
+  // Check for stored access token
+  const token = localStorage.getItem('google_access_token');
+  if (token) {
+    setAccessToken(token);
+  }
+
+  // Handle OAuth callback
+  const urlParams = new URLSearchParams(window.location.search);
+  const authStatus = urlParams.get('google_auth');
+  const tokenFromUrl = urlParams.get('access_token');
+  const error = urlParams.get('error');
+
+  if (tokenFromUrl && authStatus === 'success') {
+    // Store the token
+    localStorage.setItem('google_access_token', tokenFromUrl);
+    setAccessToken(tokenFromUrl);
+    setGoogleAuthStatus('success');
+    
+    // Remove URL parameters
+    window.history.replaceState({}, '', window.location.pathname);
+    
+    // Auto-sync after successful auth
+    setTimeout(() => handleManualSync(), 1000);
+  }
+
+  if (error) {
+    setGoogleAuthStatus('error');
+    // Remove URL parameters
+    window.history.replaceState({}, '', window.location.pathname);
+  }
+}, []);
+
+// Manual sync function
+const handleManualSync = async () => {
+  if (!accessToken) {
+    alert('Please connect Google Tasks first');
+    return;
+  }
+
+  setIsSyncing(true);
+  try {
+    const response = await fetch('/api/google-tasks/sync', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ accessToken }),
+    });
+
+    if (response.ok) {
+      const results = await response.json();
+      setLastSync(new Date());
+      await fetchTasks(); // Refresh tasks
+      
+      // Show sync results
+      console.log('Sync completed:', results);
+      
+      // Optional: Show toast notification
+      alert(`Sync completed!
+        Created: ${results.created}
+        Updated: ${results.updated}
+        Deleted: ${results.deleted}
+        Conflicts: ${results.conflicts}`);
+    } else {
+      throw new Error('Sync failed');
+    }
+  } catch (error) {
+    console.error('Sync error:', error);
+    alert('Sync failed. Please try again.');
+  } finally {
+    setIsSyncing(false);
+  }
+};
+
+// Auto-sync every 5 minutes
+useEffect(() => {
+  if (!accessToken) return;
+
+  const interval = setInterval(() => {
+    handleManualSync();
+  }, 5 * 60 * 1000);
+
+  return () => clearInterval(interval);
+}, [accessToken]);
+
+// Disconnect Google Tasks
+const handleDisconnect = () => {
+  localStorage.removeItem('google_access_token');
+  setAccessToken(null);
+  setLastSync(null);
+};
   // --- Event Handlers ---
 
   const handleAddTask = async (e: React.FormEvent) => {
@@ -468,6 +567,7 @@ export default function App() {
   const openAddTaskModal = () => {
     setEditingTask(null);
     setNewTaskName("");
+    setnewTaskPriority('medium');
     setIsTaskModalOpen(true);
   };
 
@@ -522,7 +622,6 @@ export default function App() {
                 <span className="ml-2">Settings</span>
               </Button>
             </div>
-            
             {/* Prayer Times */}
             <Card>
               <CardHeader className="pb-3">
@@ -576,12 +675,68 @@ export default function App() {
         <section className="col-span-12 flex flex-col gap-4 md:col-span-12 lg:col-span-12">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h1 className="text-4xl font-black tracking-tight">Today&apos;s Focus</h1>
+               <div className="flex items-center gap-2">
+                {!accessToken ? (
+                  <Button 
+                    onClick={() => window.location.href = '/api/google-tasks/auth'}
+                    variant="outline"
+                    className="flex items-center gap-2"
+                  >
+                    <Icon name="waypoint" className="w-4 h-4" />
+                    Connect Google Tasks
+                  </Button>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <Button 
+                      onClick={handleManualSync}
+                      disabled={isSyncing}
+                      variant="outline"
+                      className="flex items-center gap-2"
+                    >
+                      <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
+                      {isSyncing ? 'Syncing...' : 'Sync Now'}
+                    </Button>
+                    
+                    <Badge variant="secondary" className="flex items-center gap-1">
+                      <Icon name="check" className="w-3 h-3" />
+                      Connected
+                    </Badge>
+                    
+                    <Button 
+                      onClick={handleDisconnect}
+                      variant="ghost"
+                      size="sm"
+                      className="text-muted-foreground hover:text-destructive"
+                    >
+                      <Icon name="close" className="w-3 h-3" />
+                    </Button>
+                  </div>
+                )}
+              </div>
             <Button onClick={openAddTaskModal}>
               <Icon name="add_circle" />
               <span className="ml-2">Add New Task</span>
             </Button>
           </div>
+            {/* Sync Status Display */}
+            {lastSync && (
+              <div className="mb-4 text-sm text-muted-foreground">
+                Last synced: {lastSync.toLocaleString()}
+              </div>
+            )}
 
+            {/* Auth Status Messages */}
+            {googleAuthStatus === 'success' && (
+              <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-md">
+                <p className="text-green-800 text-sm">✅ Successfully connected to Google Tasks!</p>
+              </div>
+            )}
+
+            {googleAuthStatus === 'error' && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
+                <p className="text-red-800 text-sm">❌ Failed to connect to Google Tasks. Please try again.</p>
+              </div>
+            )}
           {/* Task Table */}
           <Card>
             <CardContent className="p-0">

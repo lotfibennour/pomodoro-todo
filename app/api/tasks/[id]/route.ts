@@ -28,7 +28,15 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
     const body = await request.json();
-    const { name, estimatedPomodoros, completedPomodoros, isComplete, priority } = body;
+    const { 
+      name, 
+      estimatedPomodoros, 
+      completedPomodoros, 
+      isComplete, 
+      priority,
+      googleTaskId,
+      notes
+    } = body;
 
     const db = getDb();
     
@@ -40,7 +48,15 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     const stmt = db.prepare(`
       UPDATE tasks 
-      SET name = ?, estimatedPomodoros = ?, completedPomodoros = ?, isComplete = ?, priority = ?, updatedAt = CURRENT_TIMESTAMP
+      SET 
+        name = ?, 
+        estimatedPomodoros = ?, 
+        completedPomodoros = ?, 
+        isComplete = ?, 
+        priority = ?, 
+        googleTaskId = ?,
+        notes = ?,
+        updatedAt = CURRENT_TIMESTAMP
       WHERE id = ?
     `);
 
@@ -50,6 +66,8 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       completedPomodoros ?? existingTask.completedPomodoros,
       isComplete !== undefined ? (isComplete ? 1 : 0) : existingTask.isComplete,
       priority || existingTask.priority,
+      googleTaskId !== undefined ? googleTaskId : existingTask.googleTaskId,
+      notes !== undefined ? notes : existingTask.notes,
       parseInt(id)
     );
 
