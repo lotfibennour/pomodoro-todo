@@ -25,7 +25,7 @@ export function TaskList({ tasks, onTaskUpdate, onTaskCreate, onTaskDelete }: Ta
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-4xl font-black tracking-tight">Today's Focus</h1>
+        <h1 className="text-4xl font-black tracking-tight">Today's Focuss</h1>
         <NewTaskForm onSubmit={onTaskCreate} />
       </div>
 

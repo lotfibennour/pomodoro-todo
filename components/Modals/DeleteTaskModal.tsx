@@ -3,6 +3,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from '@/components/ui/button';
 import { Icon } from '../Icons';
 import { Task } from '@/types';
+import { useTranslations } from 'next-intl';
+
 
 interface DeleteTaskModalProps {
   isOpen: boolean;
@@ -17,13 +19,15 @@ export const DeleteTaskModal: React.FC<DeleteTaskModalProps> = ({
   editingTask,
   onDelete
 }) => {
+  const t = useTranslations('tasks');
+  const tCommon = useTranslations('common');
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Delete Task</DialogTitle>
+          <DialogTitle>{tCommon('delete')} {t('taskName').toLowerCase()}</DialogTitle>
           <DialogDescription>
-            Are you sure you want to delete "{editingTask?.name}"? This action cannot be undone.
+            {t('deleteConfirm', { taskName: editingTask?.name || '' })}
           </DialogDescription>
         </DialogHeader>
         
@@ -32,14 +36,14 @@ export const DeleteTaskModal: React.FC<DeleteTaskModalProps> = ({
             variant="outline" 
             onClick={onClose}
           >
-            Cancel
+            {tCommon('cancel')}
           </Button>
           <Button 
             variant="destructive"
             onClick={onDelete}
           >
             <Icon name="delete" className="w-4 h-4 mr-2" />
-            Delete
+            {tCommon('delete')}
           </Button>
         </DialogFooter>
       </DialogContent>

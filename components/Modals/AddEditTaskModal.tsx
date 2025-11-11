@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Icon } from '../Icons';
 import { Task } from '@/types';
+import { useTranslations } from 'next-intl';
 
 interface AddEditTaskModalProps {
   isOpen: boolean;
@@ -35,6 +36,9 @@ export const AddEditTaskModal: React.FC<AddEditTaskModalProps> = ({
   onSubmit,
   onDelete
 }) => {
+  const t = useTranslations('tasks');
+  const tCommon = useTranslations('common');
+
   const currentEstimatedPomodoros = editingTask ? editingTask.estimatedPomodoros : newTaskEstimatedPomodoros;
 
   const handleDecreasePomodoros = () => {
@@ -59,19 +63,28 @@ export const AddEditTaskModal: React.FC<AddEditTaskModalProps> = ({
     }
   };
 
+  const getPriorityText = (priority: string) => {
+    switch (priority) {
+      case 'low': return t('low');
+      case 'medium': return t('medium');
+      case 'high': return t('high');
+      default: return priority;
+    }
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{editingTask ? 'Edit Task' : 'Add New Task'}</DialogTitle>
+          <DialogTitle>{editingTask ? t('editTask') : t('addNewTask')}</DialogTitle>
           <DialogDescription>
-            {editingTask ? 'Update your task details.' : 'Create a new task to focus on.'}
+            {editingTask ? t('updateTask') : t('createTask')}
           </DialogDescription>
         </DialogHeader>
         
         <form onSubmit={onSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="task-name">Task Name</Label>
+            <Label htmlFor="task-name">{t('taskName')}</Label>
             <Input 
               id="task-name"
               value={editingTask ? editingTask.name : newTaskName}
@@ -79,13 +92,13 @@ export const AddEditTaskModal: React.FC<AddEditTaskModalProps> = ({
                 ? onSetEditingTask({...editingTask, name: e.target.value})
                 : onSetNewTaskName(e.target.value)
               }
-              placeholder="Enter task name"
+              placeholder={t('taskName')}
               required
             />
           </div>
           
           <div className="space-y-2">
-            <Label htmlFor="pomodoro-est">Estimate Pomodoros 🍅</Label>
+            <Label htmlFor="pomodoro-est">{t('estimatedPomodoros')} 🍅</Label>
             <div className="flex items-center gap-2">
               <Button 
                 type="button"
@@ -115,7 +128,7 @@ export const AddEditTaskModal: React.FC<AddEditTaskModalProps> = ({
           </div>
           
           <div className="space-y-2">
-            <Label>Priority</Label>
+            <Label>{t('priority')}</Label>
             <div className="grid grid-cols-3 gap-2">
               {(['low', 'medium', 'high'] as const).map(priority => (
                 <Button 
@@ -136,7 +149,7 @@ export const AddEditTaskModal: React.FC<AddEditTaskModalProps> = ({
                     : onSetNewTaskPriority(priority)
                   }
                 >
-                  {priority.charAt(0).toUpperCase() + priority.slice(1)}
+                  {getPriorityText(priority)}
                 </Button>
               ))}
             </div>
@@ -150,7 +163,7 @@ export const AddEditTaskModal: React.FC<AddEditTaskModalProps> = ({
                 onClick={() => onDelete(editingTask)}
               >
                 <Icon name="delete" className="w-4 h-4 mr-2" />
-                Delete
+                {tCommon('delete')}
               </Button>
             )}
             <div className={`flex gap-2 ${editingTask ? 'ml-auto' : 'w-full justify-end'}`}>
@@ -159,10 +172,10 @@ export const AddEditTaskModal: React.FC<AddEditTaskModalProps> = ({
                 variant="outline" 
                 onClick={onClose}
               >
-                Cancel
+                {tCommon('cancel')}
               </Button>
               <Button type="submit">
-                {editingTask ? 'Update Task' : 'Add Task'}
+                {editingTask ? tCommon('save') : tCommon('add')}
               </Button>
             </div>
           </DialogFooter>

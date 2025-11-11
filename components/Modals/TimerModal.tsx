@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Icon } from '../Icons';
 import { Task, TimerMode, NextPrayer } from '@/types';
+import { useTranslations } from 'next-intl';
 
 interface TimerModalProps {
   isOpen: boolean;
@@ -30,14 +31,26 @@ export const TimerModal: React.FC<TimerModalProps> = ({
   getTotalTime,
   onTimerControl
 }) => {
+  const t = useTranslations('timer');
+  const tPrayer = useTranslations('prayer');
+
   const totalTime = getTotalTime();
-  const progress = ((totalTime - timeLeft) / totalTime) * 283; // 283 is circumference
+  const progress = ((totalTime - timeLeft) / totalTime) * 283;
+
+  const getModeText = () => {
+    switch (timerMode) {
+      case 'focus': return t('focus');
+      case 'shortBreak': return t('shortBreak');
+      case 'longBreak': return t('longBreak');
+      default: return t('focus');
+    }
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-sm" onInteractOutside={(e) => e.preventDefault()}>
         <DialogHeader>
-          <DialogTitle className="text-center">Pomodoro Timer</DialogTitle>
+          <DialogTitle className="text-center">{t('pomodoroTimer')}</DialogTitle>
         </DialogHeader>
         
         <div className="flex flex-col items-center space-y-6">
@@ -55,7 +68,7 @@ export const TimerModal: React.FC<TimerModalProps> = ({
             </svg>
             <div className="z-10 flex flex-col items-center justify-center text-center">
               <p className="text-sm font-medium uppercase tracking-widest text-primary capitalize">
-                {timerMode === 'focus' ? 'Focus' : timerMode === 'shortBreak' ? 'Short Break' : 'Long Break'}
+                {getModeText()}
               </p>
               <h1 className="text-6xl font-bold" style={{fontVariantNumeric: 'tabular-nums'}}>
                 {formatTime(timeLeft)}
@@ -79,7 +92,10 @@ export const TimerModal: React.FC<TimerModalProps> = ({
               className="h-16 w-16 rounded-full"
               onClick={() => onTimerControl('toggle')}
             >
-              {isTimerRunning ? <Icon name="pause" className="w-6 h-6" /> : <Icon name="play" className="w-6 h-6" />}
+              {isTimerRunning ? 
+                <Icon name="pause" className="w-6 h-6" /> : 
+                <Icon name="play" className="w-6 h-6" />
+              }
             </Button>
             <Button 
               variant="outline" 
@@ -96,7 +112,7 @@ export const TimerModal: React.FC<TimerModalProps> = ({
                 <Icon name="mosque" />
               </div>
               <p className="flex-1 truncate text-sm">
-                Next: {nextPrayer.name} - {nextPrayer.time}
+                {tPrayer('nextPrayer', { name: nextPrayer.name, time: nextPrayer.time })}
               </p>
             </CardContent>
           </Card>

@@ -24,6 +24,8 @@ import { Input } from "@/components/ui/input";
 import { SearchIcon } from "lucide-react";
 import { Icon } from "./Icons";
 import { Task, SyncStats } from "@/types";
+import { LanguageSwitcher } from '@/components/LanguageSwitcher';
+import { useTranslations } from 'next-intl';
 
 interface TaskTableProps {
   tasks: Task[];
@@ -59,6 +61,10 @@ export const TaskTable: React.FC<TaskTableProps> = ({
   canSync,
   onAddTask,
 }) => {
+  const t = useTranslations('tasks');
+  const tCommon = useTranslations('common');
+  const tSync = useTranslations('sync');
+
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
@@ -76,11 +82,20 @@ export const TaskTable: React.FC<TaskTableProps> = ({
     }
   };
 
+  const getPriorityText = (priority: string) => {
+    switch (priority) {
+      case "high": return t('high');
+      case "medium": return t('medium');
+      case "low": return t('low');
+      default: return priority;
+    }
+  };
+
   const columns = useMemo<ColumnDef<Task>[]>(
     () => [
       {
         id: "select",
-        header: "Done",
+        header: t('status'),
         cell: ({ row }) => (
           <input
             type="checkbox"
@@ -92,7 +107,7 @@ export const TaskTable: React.FC<TaskTableProps> = ({
       },
       {
         accessorKey: "name",
-        header: "Task",
+        header: t('taskName'),
         cell: ({ row }) => (
           <div
             className={`font-medium ${
@@ -107,7 +122,7 @@ export const TaskTable: React.FC<TaskTableProps> = ({
       },
       {
         id: "pomodoros",
-        header: "Pomodoros",
+        header: t('pomodoros'),
         cell: ({ row }) => (
           <div className="text-sm text-muted-foreground">
             <span className="font-semibold text-foreground">
@@ -119,19 +134,19 @@ export const TaskTable: React.FC<TaskTableProps> = ({
       },
       {
         accessorKey: "priority",
-        header: "Priority",
+        header: t('priority'),
         cell: ({ row }) => (
           <Badge
             variant={getPriorityVariant(row.getValue("priority"))}
             className="capitalize"
           >
-            {row.getValue("priority")}
+            {getPriorityText(row.getValue("priority"))}
           </Badge>
         ),
       },
       {
         id: "actions",
-        header: "",
+        header: t('actions'),
         cell: ({ row }) => (
           <div className="flex justify-end gap-2">
             {!row.original.isComplete && (
@@ -140,7 +155,7 @@ export const TaskTable: React.FC<TaskTableProps> = ({
                 size="sm"
                 onClick={() => onStartPomodoro(row.original)}
               >
-                Start
+                {t('start')}
               </Button>
             )}
             <Button
@@ -148,7 +163,7 @@ export const TaskTable: React.FC<TaskTableProps> = ({
               size="sm"
               onClick={() => onEditTask(row.original)}
             >
-              Edit
+              {tCommon('edit')}
             </Button>
             <Button
               variant="ghost"
@@ -162,7 +177,7 @@ export const TaskTable: React.FC<TaskTableProps> = ({
         ),
       },
     ],
-    [onToggleComplete, onStartPomodoro, onEditTask, onDeleteTask]
+    [t, tCommon, onToggleComplete, onStartPomodoro, onEditTask, onDeleteTask]
   );
 
   const table = useReactTable({
@@ -194,6 +209,12 @@ export const TaskTable: React.FC<TaskTableProps> = ({
         icon = <Icon name="restart_alt" className={iconClass} />;
     }
 
+    const getSyncButtonText = () => {
+      if (isSyncing) return tSync('syncing');
+      if (!canSync) return tSync('wait');
+      return tSync('syncNow');
+    };
+
     return (
       <Button
         onClick={onManualSync}
@@ -202,32 +223,38 @@ export const TaskTable: React.FC<TaskTableProps> = ({
         className="flex items-center gap-2"
       >
         {icon}
-        {isSyncing ? "Syncing..." : canSync ? "Sync Now" : "Wait..."}
+        {getSyncButtonText()}
       </Button>
     );
+  };
+
+  const getLastSyncText = () => {
+    if (!lastSync) return tSync('lastSync', { time: tSync('never') });
+    return tSync('lastSync', { time: lastSync.toLocaleTimeString() });
   };
 
   return (
     <>
       {/* Header + Sync Section */}
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-3xl font-bold tracking-tight">Today&apos;s Focus</h1>
+        <h1 className="text-3xl font-bold tracking-tight">{t('todayFocus')}</h1>
         <div className="flex items-center gap-3">
+          <LanguageSwitcher />
           {!accessToken ? (
             <Button onClick={onConnectGoogle} variant="outline" className="flex gap-2">
               <Icon name="waypoint" className="h-4 w-4" />
-              Connect Google Tasks
+              {tSync('connectGoogle')}
             </Button>
           ) : (
             <>
               {renderSyncButton()}
               <Badge variant="secondary" className="flex items-center gap-1">
                 <Icon name="check" className="h-3 w-3" />
-                Connected
+                {tCommon('connected')}
               </Badge>
               {lastSync && (
                 <span className="text-sm text-muted-foreground">
-                  Last: {lastSync.toLocaleTimeString()}
+                  {getLastSyncText()}
                 </span>
               )}
               <Button
@@ -235,6 +262,7 @@ export const TaskTable: React.FC<TaskTableProps> = ({
                 variant="ghost"
                 size="icon"
                 className="text-muted-foreground hover:text-destructive"
+                title={tCommon('disconnect')}
               >
                 <Icon name="close" className="h-4 w-4" />
               </Button>
@@ -249,14 +277,14 @@ export const TaskTable: React.FC<TaskTableProps> = ({
           <SearchIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/70" />
           <Input
             className="pl-9"
-            placeholder="Search tasks..."
+            placeholder={`${tCommon('search')} ${t('taskName').toLowerCase()}...`}
             value={globalFilter ?? ""}
             onChange={(e) => setGlobalFilter(e.target.value)}
           />
         </div>
         <Button onClick={onAddTask} className="ml-4 flex items-center gap-2">
           <Icon name="add_circle" className="h-4 w-4" />
-          Add Task
+          {t('addNewTask')}
         </Button>
       </div>
 
@@ -303,7 +331,7 @@ export const TaskTable: React.FC<TaskTableProps> = ({
                     colSpan={columns.length}
                     className="h-32 text-center text-muted-foreground"
                   >
-                    No tasks found. Add a new one to get started ✨
+                    {t('noTasks')}
                   </TableCell>
                 </TableRow>
               )}

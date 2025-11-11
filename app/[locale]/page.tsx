@@ -20,6 +20,7 @@ import { DeleteTaskModal } from '@/components/Modals/DeleteTaskModal';
 import { TimerModal } from '@/components/Modals/TimerModal';
 import { PrayerAlertModal } from '@/components/Modals/PrayerAlertModal';
 import { SettingsModal } from '@/components/Modals/SettingsModal';
+import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import QuranPlayer from '@/components/quran-player';
 
 // Types
@@ -36,9 +37,8 @@ export default function App() {
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [newTaskName, setNewTaskName] = useState("");
   const [newTaskPriority, setNewTaskPriority] = useState("medium");
-  const [wasTimerRunningBeforePrayer, setWasTimerRunningBeforePrayer] = useState(false);
   const [newTaskEstimatedPomodoros, setNewTaskEstimatedPomodoros] = useState(1);
-
+  const [wasTimerRunningBeforePrayer, setWasTimerRunningBeforePrayer] = useState(false);
 
   // Custom Hooks
   const { tasks, setTasks, isLoading, initialLoadComplete, fetchTasks } = useTasks();
@@ -58,12 +58,12 @@ export default function App() {
     accessToken, 
     isSyncing, 
     lastSync, 
-    syncStatus,
-    syncStats,  // Add this
-    canSync,     // And this
+    syncStatus, 
+    syncStats,
     handleManualSync, 
     handleDisconnect, 
-    setAccessToken 
+    setAccessToken,
+    canSync 
   } = useGoogleSync(tasks, initialLoadComplete);
 
   // Timer effect
@@ -113,7 +113,7 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: newTaskName,
-          estimatedPomodoros: newTaskEstimatedPomodoros, // Use the state
+          estimatedPomodoros: newTaskEstimatedPomodoros,
           completedPomodoros: 0,
           isComplete: false,
           priority: newTaskPriority as 'low' | 'medium' | 'high',
@@ -124,7 +124,7 @@ export default function App() {
         const newTask = await response.json();
         setTasks(prev => [newTask, ...prev]);
         setNewTaskName("");
-        setNewTaskEstimatedPomodoros(1); // Reset after adding
+        setNewTaskEstimatedPomodoros(1);
         setIsTaskModalOpen(false);
       } else {
         console.error('Failed to create task');
@@ -185,8 +185,6 @@ export default function App() {
     const updatedTask = { 
       ...task, 
       isComplete: !task.isComplete,
-      // When marking complete, set completed pomodoros to estimated
-      // When marking incomplete, set completed pomodoros to 0
       completedPomodoros: !task.isComplete ? task.estimatedPomodoros : 0
     };
     
@@ -231,7 +229,7 @@ export default function App() {
     const updatedTask = { 
       ...task, 
       completedPomodoros: newCompletedPomodoros,
-      isComplete: isComplete // Add this line to mark as complete when pomodoros are done
+      isComplete: isComplete
     };
     
     try {
@@ -298,7 +296,7 @@ export default function App() {
     setEditingTask(null);
     setNewTaskName("");
     setNewTaskPriority('medium');
-    setNewTaskEstimatedPomodoros(1); // Reset to 1 when opening modal
+    setNewTaskEstimatedPomodoros(1);
     setIsTaskModalOpen(true);
   };
 
@@ -338,25 +336,26 @@ export default function App() {
             onStartPomodoro={handleStartPomodoro}
             onEditTask={handleEditTask}
             onDeleteTask={openDeleteModal}
+            onAddTask={openAddTaskModal}
             accessToken={accessToken}
             isSyncing={isSyncing}
             syncStatus={syncStatus}
-            syncStats={syncStats}  // Add this
             lastSync={lastSync}
+            syncStats={syncStats}
             onManualSync={handleManualSync}
             onDisconnect={handleDisconnect}
             onConnectGoogle={handleConnectGoogle}
-            canSync={canSync}  // Add this 
-            onAddTask={openAddTaskModal}
+            canSync={canSync}
           />
-          
-          {/* <Button  className="mt-4">
-            <span className="ml-2">Add New Task</span>
-          </Button> */}
         </section>
       </main>
 
       <QuranPlayer />
+
+      {/* Language Switcher
+      <div className="fixed left-1/2 transform -translate-x-1/2 z-50">
+        <LanguageSwitcher />
+      </div> */}
 
       {/* Modals */}
       <AddEditTaskModal

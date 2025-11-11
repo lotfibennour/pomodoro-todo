@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Icon } from '../Icons';
+import { useTranslations } from 'next-intl';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -14,59 +15,62 @@ interface SettingsModalProps {
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
+  const t = useTranslations('settings');
+  const tCommon = useTranslations('common');
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-3xl">Settings</DialogTitle>
+          <DialogTitle className="text-3xl">{t('title')}</DialogTitle>
           <DialogDescription>
-            Configure your location, prayer times, and notification preferences.
+            {t('description')}
           </DialogDescription>
         </DialogHeader>
         
         <Tabs defaultValue="location" className="space-y-6">
           <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="location">Location</TabsTrigger>
-            <TabsTrigger value="calculation">Calculation</TabsTrigger>
-            <TabsTrigger value="notifications">Notifications</TabsTrigger>
+            <TabsTrigger value="location">{t('location')}</TabsTrigger>
+            <TabsTrigger value="calculation">{t('calculation')}</TabsTrigger>
+            <TabsTrigger value="notifications">{t('notifications')}</TabsTrigger>
           </TabsList>
           
           <TabsContent value="location" className="space-y-4">
             <div className="space-y-2">
-              <h3 className="text-lg font-semibold">Set Your Location</h3>
+              <h3 className="text-lg font-semibold">{t('setLocation')}</h3>
               <p className="text-sm text-muted-foreground">
-                Provide your location for accurate prayer time calculations.
+                {t('locationDescription')}
               </p>
             </div>
             
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="city">City</Label>
-                <Input id="city" placeholder="e.g. New York" />
+                <Label htmlFor="city">{t('city')}</Label>
+                <Input id="city" placeholder={t('city')} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="country">Country</Label>
-                <Input id="country" placeholder="e.g. United States" />
+                <Label htmlFor="country">{t('country')}</Label>
+                <Input id="country" placeholder={t('country')} />
               </div>
             </div>
             
             <div className="flex items-center space-x-2">
               <Switch id="auto-detect" />
-              <Label htmlFor="auto-detect">Auto-detect location</Label>
+              <Label htmlFor="auto-detect">{t('autoDetect')}</Label>
             </div>
           </TabsContent>
           
           <TabsContent value="calculation" className="space-y-4">
             <div className="space-y-2">
-              <h3 className="text-lg font-semibold">Calculation & Time Zone</h3>
+              <h3 className="text-lg font-semibold">{t('calculationMethod')} & {t('timezone')}</h3>
             </div>
             
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="calculation-method">Calculation Method</Label>
+                <Label htmlFor="calculation-method">{t('calculationMethod')}</Label>
                 <Select>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select method" />
+                    <SelectValue placeholder={t('calculationMethod')} />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="isna">Islamic Society of North America (ISNA)</SelectItem>
@@ -77,10 +81,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="timezone">Time Zone</Label>
+                <Label htmlFor="timezone">{t('timezone')}</Label>
                 <Select>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select timezone" />
+                    <SelectValue placeholder={t('timezone')} />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="et">(GMT-05:00) Eastern Time (US & Canada)</SelectItem>
@@ -95,18 +99,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
           
           <TabsContent value="notifications" className="space-y-4">
             <div className="space-y-2">
-              <h3 className="text-lg font-semibold">Notification Preferences</h3>
+              <h3 className="text-lg font-semibold">{t('notificationPreferences')}</h3>
               <p className="text-sm text-muted-foreground">
-                Configure how you want to be notified about prayer times.
+                {t('notificationPreferences')}
               </p>
             </div>
             
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <Label htmlFor="prayer-notifications">Prayer Time Notifications</Label>
+                  <Label htmlFor="prayer-notifications">{t('prayerNotifications')}</Label>
                   <p className="text-sm text-muted-foreground">
-                    Get notified when it's time for prayer
+                    {t('prayerNotificationsDesc')}
                   </p>
                 </div>
                 <Switch id="prayer-notifications" defaultChecked />
@@ -114,9 +118,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
               
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <Label htmlFor="timer-notifications">Timer Completion Notifications</Label>
+                  <Label htmlFor="timer-notifications">{t('timerNotifications')}</Label>
                   <p className="text-sm text-muted-foreground">
-                    Get notified when a pomodoro session completes
+                    {t('timerNotificationsDesc')}
                   </p>
                 </div>
                 <Switch id="timer-notifications" defaultChecked />
@@ -128,7 +132,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         <DialogFooter>
           <Button onClick={onClose}>
             <Icon name="check" className="w-4 h-4 mr-2" />
-            Save Changes
+            {tCommon('save')}
           </Button>
         </DialogFooter>
       </DialogContent>

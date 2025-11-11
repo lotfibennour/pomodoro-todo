@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from '@/components/ui/button';
 import { Icon } from '../Icons';
 import { NextPrayer } from '@/types';
+import { useTranslations } from 'next-intl';
 
 interface PrayerAlertModalProps {
   isOpen: boolean;
@@ -19,16 +20,22 @@ export const PrayerAlertModal: React.FC<PrayerAlertModalProps> = ({
   wasTimerRunningBeforePrayer,
   onResumeAfterPrayer
 }) => {
+  const t = useTranslations('prayer');
+
+  const getTimerStatusText = () => {
+    return wasTimerRunningBeforePrayer ? t('timerPaused') : t('timerStopped');
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md" onInteractOutside={(e) => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Icon name="mosque" className="text-primary" />
-            {nextPrayer.name} Time
+            {t('prayerTime', { name: nextPrayer.name })}
           </DialogTitle>
           <DialogDescription>
-            It's time to pray. Timer was {wasTimerRunningBeforePrayer ? 'paused' : 'already stopped'}.
+            {t('timeToPray', { timerStatus: getTimerStatusText() })}
           </DialogDescription>
         </DialogHeader>
         
@@ -38,13 +45,13 @@ export const PrayerAlertModal: React.FC<PrayerAlertModalProps> = ({
             onClick={onClose}
             className="w-full sm:w-auto"
           >
-            Dismiss
+            {t('dismiss')}
           </Button>
           <Button 
             onClick={onResumeAfterPrayer}
             className="w-full sm:w-auto"
           >
-            Resume Timer
+            {t('resumeTimer')}
           </Button>
         </DialogFooter>
       </DialogContent>
