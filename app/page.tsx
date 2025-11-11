@@ -1,273 +1,77 @@
-// app/page.tsx
 'use client';
 import React, { useState, useEffect } from 'react';
-import {
-  Bell,
-  Check,
-  CheckCircle,
-  ChevronDown,
-  Circle,
-  Clock,
-  Cog,
-  Flag,
-  ListTodo,
-  Minus,
-  Pause,
-  Play,
-  Plus,
-  RefreshCw,
-  Settings,
-  SkipForward,
-  Trash2,
-  X,
-  Hourglass,
-  LayoutGrid,
-  Timer,
-  LogOut,
-  HelpCircle,
-  Sun,
-  Moon,
-  Sunrise,
-  Sunset,
-  Waypoints
-} from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 
 // Shadcn components
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Textarea } from '@/components/ui/textarea';
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
-import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { PrayTime } from 'praytime';
+import { Sheet } from '@/components/ui/sheet';
+
+// Custom hooks
+import { useTasks } from '@/hooks/useTasks';
+import { useTimer } from '@/hooks/useTimer';
+import { usePrayerTimes } from '@/hooks/usePrayerTimes';
+import { useGoogleSync } from '@/hooks/useGoogleSync';
+
+// Components
+import { Sidebar } from '@/components/Sidebar';
+import { TaskTable } from '@/components/TaskTable';
+import { AddEditTaskModal } from '@/components/Modals/AddEditTaskModal';
+import { DeleteTaskModal } from '@/components/Modals/DeleteTaskModal';
+import { TimerModal } from '@/components/Modals/TimerModal';
+import { PrayerAlertModal } from '@/components/Modals/PrayerAlertModal';
+import { SettingsModal } from '@/components/Modals/SettingsModal';
 import QuranPlayer from '@/components/quran-player';
 
-const useDebounce = (value: any, delay: number) => {
-  const [debouncedValue, setDebouncedValue] = useState(value);
+// Types
+import { Task, TimerMode } from '@/types';
 
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delay);
-
-    return () => {
-      clearTimeout(handler);
-    };
-  }, [value, delay]);
-
-  return debouncedValue;
-};
-
-/* --- Types --- */
-interface Task {
-  id: number;
-  name: string;
-  estimatedPomodoros: number;
-  completedPomodoros: number;
-  isComplete: boolean;
-  priority: 'low' | 'medium' | 'high';
-  createdAt?: string;
-  updatedAt?: string;
-  googleTaskId?: string;
-  notes?: string;
-}
-
-interface PrayerTimes {
-  Fajr: string;
-  Dhuhr: string;
-  Asr: string;
-  Maghrib: string;
-  Isha: string;
-}
-
-interface NextPrayer {
-  name: string;
-  time: string;
-}
-
-type TimerMode = 'focus' | 'shortBreak' | 'longBreak';
-
-type IconName = 
-  | 'grid_view' | 'check_circle' | 'timer' | 'settings' | 'help' | 'logout'
-  | 'hourglass_top' | 'mosque' | 'close' | 'restart_alt' | 'pause' | 'play'
-  | 'skip_next' | 'list_alt' | 'add_circle' | 'delete' | 'minus' | 'plus'
-  | 'sun' | 'moon' | 'sunrise' | 'sunset' | 'waypoint' | 'bell' | 'check';
-
-/* --- Prayer Time Utilities --- */
-const praytime = new PrayTime();
-const times = praytime.method('France').location([50.531036, 2.639260]).timezone('Europe/Paris').format('24h').getTimes();
-
-const mockPrayerTimes: PrayerTimes = {
-  Fajr: times.fajr,
-  Dhuhr: times.dhuhr,
-  Asr: times.asr,
-  Maghrib: times.maghrib,
-  Isha: times.isha,
-};
-
-/**
- * Finds the next prayer time based on the current time.
- */
-function getNextPrayerTime(prayerTimes: PrayerTimes): NextPrayer | null {
-  const now = new Date();
-  const currentMinutes = now.getHours() * 60 + now.getMinutes();
-
-  const prayerOrder = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
-
-  for (const prayerName of prayerOrder) {
-    const timeString = prayerTimes[prayerName];
-    
-    if (!timeString || !timeString.match(/^\d{2}:\d{2}$/)) {
-      continue;
-    }
-    
-    const [hours, minutes] = timeString.split(':').map(Number);
-    const prayerMinutes = hours * 60 + minutes;
-
-    if (prayerMinutes > currentMinutes) {
-      return { 
-        name: prayerName, 
-        time: timeString 
-      };
-    }
-  }
-
-  if (prayerTimes.Fajr) {
-    return { 
-        name: 'Fajr (Tomorrow)', 
-        time: prayerTimes.Fajr
-    };
-  }
-
-  return null;
-}
-
-const nextPrayerTime = getNextPrayerTime(mockPrayerTimes);
-
-// Icon component with proper typing
-const Icon = ({ name, className = "w-5 h-5" }: { name: IconName; className?: string }) => {
-  const icons = {
-    grid_view: <LayoutGrid className={className} />,
-    check_circle: <CheckCircle className={className} />,
-    timer: <Timer className={className} />,
-    settings: <Settings className={className} />,
-    help: <HelpCircle className={className} />,
-    logout: <LogOut className={className} />,
-    hourglass_top: <Hourglass className={className} />,
-    mosque: <Timer className={className} />,
-    close: <X className={className} />,
-    restart_alt: <RefreshCw className={className} />,
-    pause: <Pause className={className} />,
-    play: <Play className={className} />,
-    skip_next: <SkipForward className={className} />,
-    list_alt: <ListTodo className={className} />,
-    add_circle: <Plus className={className} />,
-    delete: <Trash2 className={className} />,
-    minus: <Minus className="w-4 h-4" />,
-    plus: <Plus className="w-4 h-4" />,
-    sun: <Sun className={className} />,
-    moon: <Moon className={className} />,
-    sunrise: <Sunrise className={className} />,
-    sunset: <Sunset className={className} />,
-    waypoint: <Waypoints className={className} />,
-    bell: <Bell className={className} />,
-    check: <Check className={className} />,
-  };
-  return icons[name] || <Circle className={className} />;
-};
-
-/* --- Main App Component --- */
 export default function App() {
-  const [tasks, setTasks] = useState<Task[]>([]);
+  // State
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
-  const [prayerTimes, setPrayerTimes] = useState<PrayerTimes>(mockPrayerTimes);
-  const [nextPrayer, setNextPrayer] = useState<NextPrayer>({ 
-    name: nextPrayerTime?.name || 'Fajr', 
-    time: nextPrayerTime?.time || '06:00' 
-  });
-  const [isLoading, setIsLoading] = useState(true);
-  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
-  const [lastSyncTime, setLastSyncTime] = useState<number>(0);
-
-  // Timer State
-  const [timerMode, setTimerMode] = useState<TimerMode>('focus');
-  const [timeLeft, setTimeLeft] = useState(25 * 60);
-  const [isTimerRunning, setIsTimerRunning] = useState(false);
-  const [wasTimerRunningBeforePrayer, setWasTimerRunningBeforePrayer] = useState(false);
-  
-  // Modal State
   const [isTimerModalOpen, setIsTimerModalOpen] = useState(false);
   const [isPrayerAlertOpen, setIsPrayerAlertOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  
-  const [newTaskName, setNewTaskName] = useState("");
-  const [newTaskPriority, setnewTaskPriority] = useState("");
   const [editingTask, setEditingTask] = useState<Task | null>(null);
-  const [accessToken, setAccessToken] = useState<string | null>(null);
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [lastSync, setLastSync] = useState<Date | null>(null);
-  const [googleAuthStatus, setGoogleAuthStatus] = useState<'idle' | 'success' | 'error'>('idle');
-  const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'success' | 'error'>('idle');
-  const debouncedTasks = useDebounce(tasks, 10000); // 10 second debounce
+  const [newTaskName, setNewTaskName] = useState("");
+  const [newTaskPriority, setNewTaskPriority] = useState("medium");
+  const [wasTimerRunningBeforePrayer, setWasTimerRunningBeforePrayer] = useState(false);
+  const [newTaskEstimatedPomodoros, setNewTaskEstimatedPomodoros] = useState(1);
 
-  // Sync cooldown check
-  const canSync = (): boolean => {
-    const now = Date.now();
-    return (now - lastSyncTime) > 30000; // 30 second cooldown
-  };
 
-  const fetchTasks = async () => {
-    try {
-      setIsLoading(true);
-      console.log('Fetching tasks from /api/tasks...');
-      
-      const response = await fetch('/api/tasks');
-      console.log('Response status:', response.status);
-      
-      if (response.ok) {
-        const tasksData = await response.json();
-        console.log('Tasks fetched successfully:', tasksData);
-        setTasks(tasksData);
-        
-        // Mark initial load as complete after first successful fetch
-        if (!initialLoadComplete) {
-          setInitialLoadComplete(true);
-          console.log('Initial load complete');
-        }
-      } else {
-        const errorText = await response.text();
-        console.error('Failed to fetch tasks:', response.status, errorText);
-        setTasks([]);
-      }
-    } catch (error) {
-      console.error('Error fetching tasks:', error);
-      setTasks([]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  // Custom Hooks
+  const { tasks, setTasks, isLoading, initialLoadComplete, fetchTasks } = useTasks();
+  const { 
+    timerMode, 
+    setTimerMode, 
+    timeLeft, 
+    setTimeLeft, 
+    isTimerRunning, 
+    setIsTimerRunning, 
+    formatTime, 
+    getTotalTime 
+  } = useTimer();
+  
+  const { prayerTimes, nextPrayer } = usePrayerTimes();
+  const { 
+    accessToken, 
+    isSyncing, 
+    lastSync, 
+    syncStatus,
+    syncStats,  // Add this
+    canSync,     // And this
+    handleManualSync, 
+    handleDisconnect, 
+    setAccessToken 
+  } = useGoogleSync(tasks, initialLoadComplete);
 
-  // Load tasks on component mount
-  useEffect(() => {
-    fetchTasks();
-  }, []);
-
-  // Timer Countdown Logic
+  // Timer effect
   useEffect(() => {
     if (!isTimerRunning || !isTimerModalOpen) return;
 
     if (timeLeft <= 0) {
       setIsTimerRunning(false);
-      
-      // Handle timer completion - update task in database with sync
       if (timerMode === 'focus' && selectedTask) {
         handlePomodoroComplete(selectedTask.id);
       }
@@ -281,7 +85,7 @@ export default function App() {
     return () => clearInterval(interval);
   }, [isTimerRunning, timeLeft, isTimerModalOpen, timerMode, selectedTask]);
 
-  // Prayer Time API Fetching Logic
+  // Prayer time effect
   useEffect(() => {
     const checkPrayerMatch = () => {
       const now = new Date();
@@ -298,263 +102,7 @@ export default function App() {
     return () => clearInterval(interval);
   }, [nextPrayer, isTimerRunning]);
 
-  // Token Refresh Function
-  const refreshAccessToken = async (): Promise<string | null> => {
-    try {
-      const refreshToken = localStorage.getItem('google_refresh_token');
-      if (!refreshToken) {
-        console.log('No refresh token available');
-        return null;
-      }
-
-      const response = await fetch('/api/google-tasks/refresh', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ refreshToken }),
-      });
-
-      if (response.ok) {
-        const tokens = await response.json();
-        localStorage.setItem('google_access_token', tokens.access_token);
-        localStorage.setItem('google_token_timestamp', Date.now().toString());
-        if (tokens.refresh_token) {
-          localStorage.setItem('google_refresh_token', tokens.refresh_token);
-        }
-        setAccessToken(tokens.access_token);
-        return tokens.access_token;
-      } else {
-        console.error('Failed to refresh token');
-        return null;
-      }
-    } catch (error) {
-      console.error('Error refreshing token:', error);
-      return null;
-    }
-  };
-
-  // Check if token is likely expired
-  const isTokenExpired = (): boolean => {
-    const tokenTimestamp = localStorage.getItem('google_token_timestamp');
-    if (!tokenTimestamp) return true;
-    
-    const tokenTime = parseInt(tokenTimestamp);
-    const currentTime = Date.now();
-    const oneHour = 60 * 60 * 1000;
-    
-    return (currentTime - tokenTime) > (50 * 60 * 1000); // Consider expired after 50 minutes
-  };
-
-  // Token management and OAuth callback
-  useEffect(() => {
-    // Check for stored access token
-    const token = localStorage.getItem('google_access_token');
-    if (token) {
-      setAccessToken(token);
-    }
-
-    // Handle OAuth callback
-    const urlParams = new URLSearchParams(window.location.search);
-    const authStatus = urlParams.get('google_auth');
-    const tokenFromUrl = urlParams.get('access_token');
-    const refreshTokenFromUrl = urlParams.get('refresh_token');
-    const error = urlParams.get('error');
-
-    if (tokenFromUrl && authStatus === 'success') {
-      // Store both tokens and timestamp
-      localStorage.setItem('google_access_token', tokenFromUrl);
-      localStorage.setItem('google_token_timestamp', Date.now().toString());
-      if (refreshTokenFromUrl) {
-        localStorage.setItem('google_refresh_token', refreshTokenFromUrl);
-      }
-      setAccessToken(tokenFromUrl);
-      setSyncStatus('success');
-      
-      // Remove URL parameters
-      window.history.replaceState({}, '', window.location.pathname);
-      
-      // Don't auto-sync immediately - wait for initial load
-      console.log('OAuth successful, waiting for initial load...');
-    }
-
-    if (error) {
-      setSyncStatus('error');
-      window.history.replaceState({}, '', window.location.pathname);
-    }
-  }, []);
-
-  // Manual sync function
-  const handleManualSync = async () => {
-    // Check sync cooldown
-    if (!canSync()) {
-      console.log('Sync cooldown active, skipping...');
-      return;
-    }
-
-    // Prevent multiple simultaneous syncs
-    if (isSyncing) {
-      console.log('Sync already in progress, skipping...');
-      return;
-    }
-
-    let currentAccessToken = accessToken;
-
-    // Check if we have a token
-    if (!currentAccessToken) {
-      const storedToken = localStorage.getItem('google_access_token');
-      if (!storedToken) {
-        alert('Please connect Google Tasks first');
-        return;
-      }
-      currentAccessToken = storedToken;
-      setAccessToken(storedToken);
-    }
-
-    setIsSyncing(true);
-    setSyncStatus('syncing');
-    
-    try {
-      const response = await fetch('/api/google-tasks/sync', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ accessToken: currentAccessToken }),
-      });
-
-      if (response.status === 401) {
-        // Token expired, try to refresh
-        console.log('Token expired, attempting refresh...');
-        const newToken = await refreshAccessToken();
-        
-        if (newToken) {
-          // Retry sync with new token
-          const retryResponse = await fetch('/api/google-tasks/sync', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ accessToken: newToken }),
-          });
-
-          if (retryResponse.ok) {
-            const results = await retryResponse.json();
-            await handleSyncSuccess(results);
-          } else {
-            throw new Error('Sync failed after token refresh');
-          }
-        } else {
-          throw new Error('Token refresh failed');
-        }
-      } else if (response.ok) {
-        const results = await response.json();
-        await handleSyncSuccess(results);
-      } else {
-        throw new Error('Sync failed');
-      }
-    } catch (error) {
-      console.error('Sync error:', error);
-      setSyncStatus('error');
-      
-      if (error instanceof Error && error.message.includes('401')) {
-        alert('❌ Authentication failed. Please reconnect Google Tasks.');
-        handleDisconnect();
-      } else {
-        alert('❌ Sync failed. Please try again.');
-      }
-    } finally {
-      setIsSyncing(false);
-      setLastSyncTime(Date.now());
-      setTimeout(() => setSyncStatus('idle'), 3000);
-    }
-  };
-
-  // Helper function for sync success
-  const handleSyncSuccess = async (results: any) => {
-    setLastSync(new Date());
-    setSyncStatus('success');
-    
-    // Refresh tasks after sync
-    await fetchTasks();
-    
-    console.log('Sync completed:', results);
-    
-    // Show detailed results only for manual syncs
-    if (results.created > 0 || results.updated > 0 || results.deleted > 0) {
-      alert(`🔄 Sync Completed!
-  ✅ Created: ${results.created}
-  🔄 Updated: ${results.updated}  
-  🗑️ Deleted: ${results.deleted}
-  ⚡ Conflicts: ${results.conflicts}`);
-    }
-  };
-
-  // Disconnect Google Tasks
-  const handleDisconnect = () => {
-    localStorage.removeItem('google_access_token');
-    localStorage.removeItem('google_refresh_token');
-    localStorage.removeItem('google_token_timestamp');
-    setAccessToken(null);
-    setLastSync(null);
-    setSyncStatus('idle');
-    console.log('Disconnected from Google Tasks');
-  };
-
-  // Auto-sync when tasks actually change (debounced)
-  useEffect(() => {
-    // Don't sync on initial load or if no access token
-    if (!initialLoadComplete || !accessToken || tasks.length === 0) {
-      console.log('Skipping auto-sync - conditions not met');
-      return;
-    }
-    
-    // Only sync if we're past the cooldown period
-    if (!canSync()) {
-      console.log('Skipping auto-sync - cooldown active');
-      return;
-    }
-
-    console.log('Tasks changed, auto-syncing...');
-    handleManualSync();
-  }, [debouncedTasks, accessToken, initialLoadComplete]);
-
-  // Initial sync when component mounts with access token
-  useEffect(() => {
-    if (accessToken && initialLoadComplete) {
-      console.log('Initial sync after load...');
-      // Small delay to ensure everything is ready
-      setTimeout(() => handleManualSync(), 2000);
-    }
-  }, [accessToken, initialLoadComplete]);
-
-  // Periodic sync (less frequent)
-  useEffect(() => {
-    if (!accessToken || !initialLoadComplete) return;
-
-    // Sync every 10 minutes, but check token first
-    const interval = setInterval(() => {
-      if (isTokenExpired()) {
-        console.log('Token likely expired, refreshing...');
-        refreshAccessToken().then(newToken => {
-          if (newToken) {
-            console.log('Token refreshed, periodic syncing...');
-            handleManualSync();
-          } else {
-            console.log('Token refresh failed, cannot periodic sync');
-          }
-        });
-      } else {
-        console.log('Periodic sync with Google Tasks...');
-        handleManualSync();
-      }
-    }, 10 * 60 * 1000); // 10 minutes
-
-    return () => clearInterval(interval);
-  }, [accessToken, initialLoadComplete]);
-
-  // --- Event Handlers ---
-
+  // Event Handlers
   const handleAddTask = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTaskName.trim()) return;
@@ -562,15 +110,13 @@ export default function App() {
     try {
       const response = await fetch('/api/tasks', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: newTaskName,
-          estimatedPomodoros: 1,
+          estimatedPomodoros: newTaskEstimatedPomodoros, // Use the state
           completedPomodoros: 0,
           isComplete: false,
-          priority: 'medium',
+          priority: newTaskPriority as 'low' | 'medium' | 'high',
         }),
       });
 
@@ -578,10 +124,8 @@ export default function App() {
         const newTask = await response.json();
         setTasks(prev => [newTask, ...prev]);
         setNewTaskName("");
+        setNewTaskEstimatedPomodoros(1); // Reset after adding
         setIsTaskModalOpen(false);
-        
-        // Don't trigger immediate sync - let debounce handle it
-        console.log('Task created, will sync via debounce...');
       } else {
         console.error('Failed to create task');
       }
@@ -597,9 +141,7 @@ export default function App() {
     try {
       const response = await fetch(`/api/tasks/${editingTask.id}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(editingTask),
       });
 
@@ -608,9 +150,6 @@ export default function App() {
         setTasks(prev => prev.map(t => t.id === editingTask.id ? updatedTask : t));
         setIsTaskModalOpen(false);
         setEditingTask(null);
-        
-        // Don't trigger immediate sync - let debounce handle it
-        console.log('Task updated, will sync via debounce...');
       } else {
         console.error('Failed to update task');
       }
@@ -631,9 +170,6 @@ export default function App() {
         setTasks(prev => prev.filter(t => t.id !== editingTask.id));
         setIsDeleteModalOpen(false);
         setEditingTask(null);
-        
-        // Don't trigger immediate sync - let debounce handle it
-        console.log('Task deleted, will sync via debounce...');
       } else {
         console.error('Failed to delete task');
       }
@@ -649,24 +185,21 @@ export default function App() {
     const updatedTask = { 
       ...task, 
       isComplete: !task.isComplete,
+      // When marking complete, set completed pomodoros to estimated
+      // When marking incomplete, set completed pomodoros to 0
       completedPomodoros: !task.isComplete ? task.estimatedPomodoros : 0
     };
     
     try {
       const response = await fetch(`/api/tasks/${taskId}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedTask),
       });
 
       if (response.ok) {
         const result = await response.json();
         setTasks(prev => prev.map(t => t.id === taskId ? result : t));
-        
-        // Don't trigger immediate sync - let debounce handle it
-        console.log('Task completion toggled, will sync via debounce...');
       } else {
         console.error('Failed to update task');
       }
@@ -692,18 +225,19 @@ export default function App() {
     const task = tasks.find(t => t.id === taskId);
     if (!task) return;
 
+    const newCompletedPomodoros = task.completedPomodoros + 1;
+    const isComplete = newCompletedPomodoros >= task.estimatedPomodoros;
+
     const updatedTask = { 
       ...task, 
-      completedPomodoros: task.completedPomodoros + 1,
-      isComplete: (task.completedPomodoros + 1) >= task.estimatedPomodoros
+      completedPomodoros: newCompletedPomodoros,
+      isComplete: isComplete // Add this line to mark as complete when pomodoros are done
     };
     
     try {
       const response = await fetch(`/api/tasks/${taskId}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedTask),
       });
 
@@ -711,13 +245,9 @@ export default function App() {
         const result = await response.json();
         setTasks(prev => prev.map(t => t.id === taskId ? result : t));
         
-        // Update selected task if it's the current one
         if (selectedTask && selectedTask.id === taskId) {
           setSelectedTask(result);
         }
-        
-        // Don't trigger immediate sync - let debounce handle it
-        console.log('Pomodoro completed, will sync via debounce...');
       } else {
         console.error('Failed to update task pomodoros');
       }
@@ -734,12 +264,6 @@ export default function App() {
     }
   };
 
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-  };
-  
   const handlePomodoroControl = (action: 'toggle' | 'reset' | 'skip') => {
     switch (action) {
       case 'toggle':
@@ -770,25 +294,11 @@ export default function App() {
     }
   };
 
-  const getTotalTime = () => {
-    switch (timerMode) {
-      case 'focus': return 25 * 60;
-      case 'shortBreak': return 5 * 60;
-      case 'longBreak': return 15 * 60;
-      default: return 25 * 60;
-    }
-  };
-
-  // Get next available task for prayer alert
-  const getNextAvailableTask = (): Task | null => {
-    const incompleteTasks = tasks.filter(t => !t.isComplete);
-    return incompleteTasks.length > 0 ? incompleteTasks[0] : tasks[0] || null;
-  };
-
   const openAddTaskModal = () => {
     setEditingTask(null);
     setNewTaskName("");
-    setnewTaskPriority('medium');
+    setNewTaskPriority('medium');
+    setNewTaskEstimatedPomodoros(1); // Reset to 1 when opening modal
     setIsTaskModalOpen(true);
   };
 
@@ -797,16 +307,10 @@ export default function App() {
     setIsDeleteModalOpen(true);
   };
 
-  const getPriorityBadgeVariant = (priority: string) => {
-    switch (priority) {
-      case 'high': return 'destructive';
-      case 'medium': return 'secondary';
-      case 'low': return 'default';
-      default: return 'outline';
-    }
+  const handleConnectGoogle = () => {
+    window.location.href = '/api/google-tasks/auth';
   };
 
-  // Add loading state
   if (isLoading) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-background">
@@ -820,616 +324,88 @@ export default function App() {
 
   return (
     <div className="flex h-screen w-full bg-background font-sans text-foreground">
+      <Sidebar 
+        prayerTimes={prayerTimes} 
+        nextPrayer={nextPrayer} 
+        onSettingsOpen={() => setIsSettingsModalOpen(true)} 
+      />
       
-      {/* --- Sidebar --- */}
-      <Sheet>
-        <Card className="flex h-screen min-h-[700px] w-64 flex-col justify-between rounded-none border-r">
-          <div className="flex flex-col gap-8 p-4">
-            <div className="flex items-center gap-3 p-2">
-              <div className="text-primary flex items-center justify-center rounded-lg bg-primary/20 p-2">
-                <Icon name="hourglass_top" className="w-6 h-6" />
-              </div>
-              <h1 className="text-lg font-bold">PrayerFlow</h1>
-            </div>
-            
-            {/* Navigation Links */}
-            <div className="flex flex-col gap-2">
-              <Button variant="secondary" className="justify-start">
-                <Icon name="check_circle" />
-                <span className="ml-2">Home</span>
-              </Button>
-              <Button variant="ghost" className="justify-start" onClick={() => setIsSettingsModalOpen(true)}>
-                <Icon name="settings" />
-                <span className="ml-2">Settings</span>
-              </Button>
-            </div>
-            {/* Prayer Times */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">Prayer Times</CardTitle>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-2">
-                {Object.entries(prayerTimes).map(([prayer, time]) => (
-                  <div 
-                    key={prayer}
-                    className={`flex items-center gap-3 rounded-lg px-3 py-2 ${
-                      nextPrayer.name === prayer 
-                        ? 'bg-primary/10 text-primary' 
-                        : 'text-muted-foreground'
-                    }`}
-                  >
-                    <Icon 
-                      name={
-                        prayer === 'Fajr' ? 'sunrise' :
-                        prayer === 'Dhuhr' ? 'sun' :
-                        prayer === 'Asr' ? 'sun' :
-                        prayer === 'Maghrib' ? 'sunset' : 'moon'
-                      } 
-                      className="text-xl" 
-                    />
-                    <p className="flex-1 text-sm font-medium">{prayer}</p>
-                    <span className={`text-xs ${nextPrayer.name === prayer ? 'font-semibold' : 'text-muted-foreground'}`}>
-                      {time}
-                    </span>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* User Profile Section */}
-          <CardFooter className="flex flex-col gap-1 border-t p-4">
-            <div className="flex items-center gap-3 p-3">
-              <img className="size-10 rounded-full" src="https://placehold.co/100x100/E2E8F0/4A5568?text=A" alt="User avatar" />
-              <div className="flex flex-col">
-                <h1 className="text-base font-medium">Aisha Khan</h1>
-                <p className="text-sm font-normal text-muted-foreground">aisha.k@email.com</p>
-              </div>
-            </div>
-          </CardFooter>
-        </Card>
-      </Sheet>
-      
-      {/* --- Main Content --- */}
       <main className="grid flex-1 grid-cols-12 gap-6 p-6 overflow-y-auto">
-        {/* Task List Section */}
         <section className="col-span-12 flex flex-col gap-4 md:col-span-12 lg:col-span-12">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h1 className="text-4xl font-black tracking-tight">Today&apos;s Focus</h1>
-            {/* Sync Status Section */}
-            <div className="flex items-center gap-2 mb-4">
-              {!accessToken ? (
-                <Button 
-                  onClick={() => window.location.href = '/api/google-tasks/auth'}
-                  variant="outline"
-                  className="flex items-center gap-2"
-                >
-                  <Icon name="waypoint" className="w-4 h-4" />
-                  Connect Google Tasks
-                </Button>
-              ) : (
-                <div className="flex items-center gap-3">
-                  {/* Sync Button with Status */}
-                  <Button 
-                    onClick={handleManualSync}
-                    disabled={isSyncing || !canSync()}
-                    variant="outline"
-                    className="flex items-center gap-2"
-                  >
-                    {syncStatus === 'syncing' ? (
-                      <RefreshCw className="w-4 h-4 animate-spin" />
-                    ) : syncStatus === 'success' ? (
-                      <Check className="w-4 h-4 text-green-500" />
-                    ) : syncStatus === 'error' ? (
-                      <X className="w-4 h-4 text-red-500" />
-                    ) : (
-                      <RefreshCw className="w-4 h-4" />
-                    )}
-                    {isSyncing ? 'Syncing...' : 'Sync Now'}
-                  </Button>
-                  
-                  {/* Connection Status */}
-                  <Badge variant="secondary" className="flex items-center gap-1">
-                    <Icon name="check" className="w-3 h-3" />
-                    Connected
-                  </Badge>
-                  
-                  {/* Last Sync Time */}
-                  {lastSync && (
-                    <span className="text-sm text-muted-foreground">
-                      Last: {lastSync.toLocaleTimeString()}
-                    </span>
-                  )}
-                  
-                  {/* Disconnect Button */}
-                  <Button 
-                    onClick={handleDisconnect}
-                    variant="ghost"
-                    size="sm"
-                    className="text-muted-foreground hover:text-destructive"
-                    title="Disconnect Google Tasks"
-                  >
-                    <Icon name="close" className="w-3 h-3" />
-                  </Button>
-                </div>
-              )}
-            </div>
-            <Button onClick={openAddTaskModal}>
-              <Icon name="add_circle" />
-              <span className="ml-2">Add New Task</span>
-            </Button>
-          </div>
-            {/* Sync Status Display */}
-            {lastSync && (
-              <div className="mb-4 text-sm text-muted-foreground">
-                Last synced: {lastSync.toLocaleString()}
-              </div>
-            )}
-
-            {/* Auth Status Messages */}
-            {googleAuthStatus === 'success' && (
-              <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-md">
-                <p className="text-green-800 text-sm">✅ Successfully connected to Google Tasks!</p>
-              </div>
-            )}
-
-            {googleAuthStatus === 'error' && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
-                <p className="text-red-800 text-sm">❌ Failed to connect to Google Tasks. Please try again.</p>
-              </div>
-            )}
-          {/* Task Table */}
-          <Card>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-12"></TableHead>
-                    <TableHead>Task Name</TableHead>
-                    <TableHead className="text-center">Pomodoros</TableHead>
-                    <TableHead className="text-center">Priority</TableHead>
-                    <TableHead className="text-center">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {tasks.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                        No tasks yet. Add your first task to get started!
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    tasks.map(task => (
-                      <TableRow key={task.id}>
-                        <TableCell>
-                          <input 
-                            className="h-5 w-5 rounded-md border-primary text-primary focus:ring-primary" 
-                            type="checkbox"
-                            checked={task.isComplete}
-                            onChange={() => handleToggleTaskComplete(task.id)}
-                          />
-                        </TableCell>
-                        <TableCell 
-                          className={`font-medium ${task.isComplete ? 'text-muted-foreground line-through' : ''}`}
-                        >
-                          {task.name}
-                        </TableCell>
-                        <TableCell className="text-center text-muted-foreground">
-                          <span className="font-semibold text-foreground">{task.completedPomodoros}</span> / {task.estimatedPomodoros} 🍅
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <Badge variant={getPriorityBadgeVariant(task.priority)}>
-                            {task.priority}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <div className="flex justify-center gap-2">
-                            {!task.isComplete && (
-                              <Button 
-                                variant="outline" 
-                                size="sm"
-                                onClick={() => handleStartPomodoro(task)}
-                              >
-                                Start
-                              </Button>
-                            )}
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              onClick={() => handleEditTask(task)}
-                            >
-                              Edit
-                            </Button>
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              onClick={() => openDeleteModal(task)}
-                            >
-                              <Icon name="delete" className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+          <TaskTable
+            tasks={tasks}
+            onToggleComplete={handleToggleTaskComplete}
+            onStartPomodoro={handleStartPomodoro}
+            onEditTask={handleEditTask}
+            onDeleteTask={openDeleteModal}
+            accessToken={accessToken}
+            isSyncing={isSyncing}
+            syncStatus={syncStatus}
+            syncStats={syncStats}  // Add this
+            lastSync={lastSync}
+            onManualSync={handleManualSync}
+            onDisconnect={handleDisconnect}
+            onConnectGoogle={handleConnectGoogle}
+            canSync={canSync}  // Add this 
+            onAddTask={openAddTaskModal}
+          />
+          
+          {/* <Button  className="mt-4">
+            <span className="ml-2">Add New Task</span>
+          </Button> */}
         </section>
       </main>
-        <QuranPlayer />
 
-      {/* --- Modals / Popups --- */}
+      <QuranPlayer />
 
-      {/* Add/Edit Task Modal */}
-      <Dialog open={isTaskModalOpen} onOpenChange={setIsTaskModalOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>{editingTask ? 'Edit Task' : 'Add New Task'}</DialogTitle>
-            <DialogDescription>
-              {editingTask ? 'Update your task details.' : 'Create a new task to focus on.'}
-            </DialogDescription>
-          </DialogHeader>
-          
-          <form onSubmit={editingTask ? handleUpdateTask : handleAddTask} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="task-name">Task Name</Label>
-              <Input 
-                id="task-name"
-                value={editingTask ? editingTask.name : newTaskName}
-                onChange={(e) => editingTask 
-                  ? setEditingTask({...editingTask, name: e.target.value})
-                  : setNewTaskName(e.target.value)
-                }
-                placeholder="Enter task name"
-                required
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="pomodoro-est">Estimate Pomodoros 🍅</Label>
-              <div className="flex items-center gap-2">
-                <Button 
-                  type="button"
-                  variant="outline" 
-                  size="icon"
-                  onClick={() => editingTask && setEditingTask({
-                    ...editingTask, 
-                    estimatedPomodoros: Math.max(1, editingTask.estimatedPomodoros - 1)
-                  })}
-                >
-                  <Icon name="minus" />
-                </Button>
-                <Input 
-                  id="pomodoro-est"
-                  type="number" 
-                  min="1"
-                  value={editingTask ? editingTask.estimatedPomodoros : 1}
-                  readOnly
-                  className="text-center font-bold"
-                />
-                <Button 
-                  type="button"
-                  variant="outline" 
-                  size="icon"
-                  onClick={() => editingTask && setEditingTask({
-                    ...editingTask, 
-                    estimatedPomodoros: editingTask.estimatedPomodoros + 1
-                  })}
-                >
-                  <Icon name="plus" />
-                </Button>
-              </div>
-            </div>
-            
-            <div className="space-y-2">
-              <Label>Priority</Label>
-              <div className="grid grid-cols-3 gap-2">
-                {(['low', 'medium', 'high'] as const).map(priority => (
-                  <Button 
-                    key={priority}
-                    type="button"
-                    variant={editingTask?.priority === priority ? 'default' : 'outline'}
-                    className={
-                      editingTask?.priority === priority 
-                        ? priority === 'low' 
-                          ? 'bg-green-500 hover:bg-green-600' 
-                          : priority === 'medium'
-                          ? 'bg-amber-500 hover:bg-amber-600'
-                          : 'bg-red-500 hover:bg-red-600'
-                        : ''
-                    }
-                    onClick={() => editingTask && setEditingTask({...editingTask, priority})}
-                  >
-                    {priority.charAt(0).toUpperCase() + priority.slice(1)}
-                  </Button>
-                ))}
-              </div>
-            </div>
-            
-            <DialogFooter className="gap-2 sm:gap-0">
-              {editingTask && (
-                <Button 
-                  type="button"
-                  variant="destructive" 
-                  onClick={() => openDeleteModal(editingTask)}
-                >
-                  <Icon name="delete" className="w-4 h-4 mr-2" />
-                  Delete
-                </Button>
-              )}
-              <div className={`flex gap-2 ${editingTask ? 'ml-auto' : 'w-full justify-end'}`}>
-                <Button 
-                  type="button"
-                  variant="outline" 
-                  onClick={() => setIsTaskModalOpen(false)}
-                >
-                  Cancel
-                </Button>
-                <Button type="submit">
-                  {editingTask ? 'Update Task' : 'Add Task'}
-                </Button>
-              </div>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      {/* Modals */}
+      <AddEditTaskModal
+        isOpen={isTaskModalOpen}
+        onClose={() => setIsTaskModalOpen(false)}
+        editingTask={editingTask}
+        newTaskName={newTaskName}
+        newTaskPriority={newTaskPriority}
+        newTaskEstimatedPomodoros={newTaskEstimatedPomodoros}
+        onSetEditingTask={setEditingTask}
+        onSetNewTaskName={setNewTaskName}
+        onSetNewTaskPriority={setNewTaskPriority}
+        onSetNewTaskEstimatedPomodoros={setNewTaskEstimatedPomodoros}
+        onSubmit={editingTask ? handleUpdateTask : handleAddTask}
+        onDelete={openDeleteModal}
+      />
 
-      {/* Delete Confirmation Modal */}
-      <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Delete Task</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete "{editingTask?.name}"? This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          
-          <DialogFooter>
-            <Button 
-              variant="outline" 
-              onClick={() => setIsDeleteModalOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button 
-              variant="destructive"
-              onClick={handleDeleteTask}
-            >
-              <Icon name="delete" className="w-4 h-4 mr-2" />
-              Delete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <DeleteTaskModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        editingTask={editingTask}
+        onDelete={handleDeleteTask}
+      />
 
-      {/* Pomodoro Timer Modal */}
-      <Dialog open={isTimerModalOpen} onOpenChange={setIsTimerModalOpen}>
-        <DialogContent className="sm:max-w-sm" 
-        onInteractOutside={(e) => e.preventDefault()}>
-          <DialogHeader>
-            <DialogTitle className="text-center">Pomodoro Timer</DialogTitle>
-          </DialogHeader>
-          
-          <div className="flex flex-col items-center space-y-6">
-            <div className="relative flex h-64 w-64 items-center justify-center">
-              <svg className="absolute inset-0 h-full w-full" viewBox="0 0 100 100">
-                <circle className="stroke-muted" cx="50" cy="50" fill="none" r="45" strokeWidth="4"></circle>
-                <circle 
-                  className="stroke-primary -rotate-90 origin-center transform transition-all duration-300" 
-                  cx="50" cy="50" fill="none" r="45" 
-                  strokeDasharray="283" 
-                  strokeDashoffset={283 - (timeLeft / getTotalTime()) * 283} 
-                  strokeLinecap="round" 
-                  strokeWidth="4"
-                ></circle> 
-              </svg>
-              <div className="z-10 flex flex-col items-center justify-center text-center">
-                <p className="text-sm font-medium uppercase tracking-widest text-primary capitalize">
-                  {timerMode === 'focus' ? 'Focus' : timerMode === 'shortBreak' ? 'Short Break' : 'Long Break'}
-                </p>
-                <h1 className="text-6xl font-bold" style={{fontVariantNumeric: 'tabular-nums'}}>
-                  {formatTime(timeLeft)}
-                </h1>
-                <p className="mt-1 text-base text-muted-foreground truncate max-w-full px-2">
-                  {selectedTask?.name || 'No task selected'}
-                </p>
-              </div>
-            </div>
-            
-            <div className="flex items-center justify-center gap-4">
-              <Button 
-                variant="outline" 
-                size="icon"
-                onClick={() => handlePomodoroControl('reset')}
-              >
-                <Icon name="restart_alt" className="w-5 h-5" />
-              </Button>
-              <Button 
-                size="lg"
-                className="h-16 w-16 rounded-full"
-                onClick={() => handlePomodoroControl('toggle')}
-              >
-                {isTimerRunning ? <Icon name="pause" className="w-6 h-6" /> : <Icon name="play" className="w-6 h-6" />}
-              </Button>
-              <Button 
-                variant="outline" 
-                size="icon"
-                onClick={() => handlePomodoroControl('skip')}
-              >
-                <Icon name="skip_next" className="w-5 h-5" />
-              </Button>
-            </div>
-            
-            <Card className="w-full">
-              <CardContent className="flex items-center gap-3 p-4">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                  <Icon name="mosque" />
-                </div>
-                <p className="flex-1 truncate text-sm">
-                  Next: {nextPrayer.name} - {nextPrayer.time}
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <TimerModal
+        isOpen={isTimerModalOpen}
+        onClose={() => setIsTimerModalOpen(false)}
+        timerMode={timerMode}
+        timeLeft={timeLeft}
+        isTimerRunning={isTimerRunning}
+        selectedTask={selectedTask}
+        nextPrayer={nextPrayer}
+        formatTime={formatTime}
+        getTotalTime={getTotalTime}
+        onTimerControl={handlePomodoroControl}
+      />
 
-      {/* Prayer Alert Modal */}
-      <Dialog open={isPrayerAlertOpen} onOpenChange={setIsPrayerAlertOpen}>
-        <DialogContent className="sm:max-w-md" 
-        onInteractOutside={(e) => e.preventDefault()}>
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Icon name="mosque" className="text-primary" />
-              {nextPrayer.name} Time
-            </DialogTitle>
-            <DialogDescription>
-              It's time to pray. Timer was {wasTimerRunningBeforePrayer ? 'paused' : 'already stopped'}.
-            </DialogDescription>
-          </DialogHeader>
-          
-          <DialogFooter className="flex-col gap-2 sm:flex-row">
-            <Button 
-              variant="outline" 
-              onClick={() => setIsPrayerAlertOpen(false)}
-              className="w-full sm:w-auto"
-            >
-              Dismiss
-            </Button>
-            <Button 
-              onClick={handleResumeAfterPrayer}
-              className="w-full sm:w-auto"
-            >
-              Resume Timer
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <PrayerAlertModal
+        isOpen={isPrayerAlertOpen}
+        onClose={() => setIsPrayerAlertOpen(false)}
+        nextPrayer={nextPrayer}
+        wasTimerRunningBeforePrayer={wasTimerRunningBeforePrayer}
+        onResumeAfterPrayer={handleResumeAfterPrayer}
+      />
 
-      {/* Settings Modal */}
-      <Dialog open={isSettingsModalOpen} onOpenChange={setIsSettingsModalOpen}>
-        <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-3xl">Settings</DialogTitle>
-            <DialogDescription>
-              Configure your location, prayer times, and notification preferences.
-            </DialogDescription>
-          </DialogHeader>
-          
-          <Tabs defaultValue="location" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="location">Location</TabsTrigger>
-              <TabsTrigger value="calculation">Calculation</TabsTrigger>
-              <TabsTrigger value="notifications">Notifications</TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="location" className="space-y-4">
-              <div className="space-y-2">
-                <h3 className="text-lg font-semibold">Set Your Location</h3>
-                <p className="text-sm text-muted-foreground">
-                  Provide your location for accurate prayer time calculations.
-                </p>
-              </div>
-              
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="city">City</Label>
-                  <Input id="city" placeholder="e.g. New York" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="country">Country</Label>
-                  <Input id="country" placeholder="e.g. United States" />
-                </div>
-              </div>
-              
-              <div className="flex items-center space-x-2">
-                <Switch id="auto-detect" />
-                <Label htmlFor="auto-detect">Auto-detect location</Label>
-              </div>
-            </TabsContent>
-            
-            <TabsContent value="calculation" className="space-y-4">
-              <div className="space-y-2">
-                <h3 className="text-lg font-semibold">Calculation & Time Zone</h3>
-              </div>
-              
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="calculation-method">Calculation Method</Label>
-                  <Select>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select method" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="isna">Islamic Society of North America (ISNA)</SelectItem>
-                      <SelectItem value="mwl">Muslim World League</SelectItem>
-                      <SelectItem value="egypt">Egyptian General Authority of Survey</SelectItem>
-                      <SelectItem value="makkah">Umm Al-Qura University, Makkah</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="timezone">Time Zone</Label>
-                  <Select>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select timezone" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="et">(GMT-05:00) Eastern Time (US & Canada)</SelectItem>
-                      <SelectItem value="ct">(GMT-06:00) Central Time (US & Canada)</SelectItem>
-                      <SelectItem value="mt">(GMT-07:00) Mountain Time (US & Canada)</SelectItem>
-                      <SelectItem value="pt">(GMT-08:00) Pacific Time (US & Canada)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </TabsContent>
-            
-            <TabsContent value="notifications" className="space-y-4">
-              <div className="space-y-2">
-                <h3 className="text-lg font-semibold">Notification Preferences</h3>
-                <p className="text-sm text-muted-foreground">
-                  Configure how you want to be notified about prayer times.
-                </p>
-              </div>
-              
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="prayer-notifications">Prayer Time Notifications</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Get notified when it's time for prayer
-                    </p>
-                  </div>
-                  <Switch id="prayer-notifications" defaultChecked />
-                </div>
-                
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="timer-notifications">Timer Completion Notifications</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Get notified when a pomodoro session completes
-                    </p>
-                  </div>
-                  <Switch id="timer-notifications" defaultChecked />
-                </div>
-              </div>
-            </TabsContent>
-          </Tabs>
-          
-          <DialogFooter>
-            <Button 
-              onClick={() => setIsSettingsModalOpen(false)}
-            >
-              <Icon name="check" className="w-4 h-4 mr-2" />
-              Save Changes
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
+      <SettingsModal
+        isOpen={isSettingsModalOpen}
+        onClose={() => setIsSettingsModalOpen(false)}
+      />
     </div>
   );
 }
