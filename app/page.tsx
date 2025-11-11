@@ -48,6 +48,22 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PrayTime } from 'praytime';
 import QuranPlayer from '@/components/quran-player';
 
+const useDebounce = (value: any, delay: number) => {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+};
+
 /* --- Types --- */
 interface Task {
   id: number;
@@ -58,8 +74,8 @@ interface Task {
   priority: 'low' | 'medium' | 'high';
   createdAt?: string;
   updatedAt?: string;
-  googleTaskId?: string; // Add this field
-  notes?: string; // Add this field
+  googleTaskId?: string;
+  notes?: string;
 }
 
 interface PrayerTimes {
@@ -176,6 +192,8 @@ export default function App() {
     time: nextPrayerTime?.time || '06:00' 
   });
   const [isLoading, setIsLoading] = useState(true);
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
+  const [lastSyncTime, setLastSyncTime] = useState<number>(0);
 
   // Timer State
   const [timerMode, setTimerMode] = useState<TimerMode>('focus');
@@ -197,20 +215,41 @@ export default function App() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSync, setLastSync] = useState<Date | null>(null);
   const [googleAuthStatus, setGoogleAuthStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'success' | 'error'>('idle');
+  const debouncedTasks = useDebounce(tasks, 10000); // 10 second debounce
 
-  // Fetch tasks from API
+  // Sync cooldown check
+  const canSync = (): boolean => {
+    const now = Date.now();
+    return (now - lastSyncTime) > 30000; // 30 second cooldown
+  };
+
   const fetchTasks = async () => {
     try {
       setIsLoading(true);
+      console.log('Fetching tasks from /api/tasks...');
+      
       const response = await fetch('/api/tasks');
+      console.log('Response status:', response.status);
+      
       if (response.ok) {
         const tasksData = await response.json();
+        console.log('Tasks fetched successfully:', tasksData);
         setTasks(tasksData);
+        
+        // Mark initial load as complete after first successful fetch
+        if (!initialLoadComplete) {
+          setInitialLoadComplete(true);
+          console.log('Initial load complete');
+        }
       } else {
-        console.error('Failed to fetch tasks');
+        const errorText = await response.text();
+        console.error('Failed to fetch tasks:', response.status, errorText);
+        setTasks([]);
       }
     } catch (error) {
       console.error('Error fetching tasks:', error);
+      setTasks([]);
     } finally {
       setIsLoading(false);
     }
@@ -227,44 +266,10 @@ export default function App() {
 
     if (timeLeft <= 0) {
       setIsTimerRunning(false);
-      // Handle timer completion - update task in database
+      
+      // Handle timer completion - update task in database with sync
       if (timerMode === 'focus' && selectedTask) {
-        const updateTaskPomodoros = async () => {
-          const updatedTask = {
-            ...selectedTask,
-            completedPomodoros: selectedTask.completedPomodoros + 1,
-          };
-
-          // Check if task is now complete
-          if (updatedTask.completedPomodoros >= updatedTask.estimatedPomodoros) {
-            updatedTask.isComplete = true;
-          }
-
-          try {
-            const response = await fetch(`/api/tasks/${selectedTask.id}`, {
-              method: 'PUT',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify(updatedTask),
-            });
-
-            if (response.ok) {
-              const result = await response.json();
-              setTasks(prev => prev.map(t => t.id === selectedTask.id ? result : t));
-              // Update selected task if it's still the same
-              if (selectedTask && selectedTask.id === result.id) {
-                setSelectedTask(result);
-              }
-            } else {
-              console.error('Failed to update task pomodoros');
-            }
-          } catch (error) {
-            console.error('Error updating task pomodoros:', error);
-          }
-        };
-
-        updateTaskPomodoros();
+        handlePomodoroComplete(selectedTask.id);
       }
       return;
     }
@@ -293,99 +298,261 @@ export default function App() {
     return () => clearInterval(interval);
   }, [nextPrayer, isTimerRunning]);
 
-// Add this useEffect for token management and URL handling
-useEffect(() => {
-  // Check for stored access token
-  const token = localStorage.getItem('google_access_token');
-  if (token) {
-    setAccessToken(token);
-  }
+  // Token Refresh Function
+  const refreshAccessToken = async (): Promise<string | null> => {
+    try {
+      const refreshToken = localStorage.getItem('google_refresh_token');
+      if (!refreshToken) {
+        console.log('No refresh token available');
+        return null;
+      }
 
-  // Handle OAuth callback
-  const urlParams = new URLSearchParams(window.location.search);
-  const authStatus = urlParams.get('google_auth');
-  const tokenFromUrl = urlParams.get('access_token');
-  const error = urlParams.get('error');
+      const response = await fetch('/api/google-tasks/refresh', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ refreshToken }),
+      });
 
-  if (tokenFromUrl && authStatus === 'success') {
-    // Store the token
-    localStorage.setItem('google_access_token', tokenFromUrl);
-    setAccessToken(tokenFromUrl);
-    setGoogleAuthStatus('success');
-    
-    // Remove URL parameters
-    window.history.replaceState({}, '', window.location.pathname);
-    
-    // Auto-sync after successful auth
-    setTimeout(() => handleManualSync(), 1000);
-  }
-
-  if (error) {
-    setGoogleAuthStatus('error');
-    // Remove URL parameters
-    window.history.replaceState({}, '', window.location.pathname);
-  }
-}, []);
-
-// Manual sync function
-const handleManualSync = async () => {
-  if (!accessToken) {
-    alert('Please connect Google Tasks first');
-    return;
-  }
-
-  setIsSyncing(true);
-  try {
-    const response = await fetch('/api/google-tasks/sync', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ accessToken }),
-    });
-
-    if (response.ok) {
-      const results = await response.json();
-      setLastSync(new Date());
-      await fetchTasks(); // Refresh tasks
-      
-      // Show sync results
-      console.log('Sync completed:', results);
-      
-      // Optional: Show toast notification
-      alert(`Sync completed!
-        Created: ${results.created}
-        Updated: ${results.updated}
-        Deleted: ${results.deleted}
-        Conflicts: ${results.conflicts}`);
-    } else {
-      throw new Error('Sync failed');
+      if (response.ok) {
+        const tokens = await response.json();
+        localStorage.setItem('google_access_token', tokens.access_token);
+        localStorage.setItem('google_token_timestamp', Date.now().toString());
+        if (tokens.refresh_token) {
+          localStorage.setItem('google_refresh_token', tokens.refresh_token);
+        }
+        setAccessToken(tokens.access_token);
+        return tokens.access_token;
+      } else {
+        console.error('Failed to refresh token');
+        return null;
+      }
+    } catch (error) {
+      console.error('Error refreshing token:', error);
+      return null;
     }
-  } catch (error) {
-    console.error('Sync error:', error);
-    alert('Sync failed. Please try again.');
-  } finally {
-    setIsSyncing(false);
-  }
-};
+  };
 
-// Auto-sync every 5 minutes
-useEffect(() => {
-  if (!accessToken) return;
+  // Check if token is likely expired
+  const isTokenExpired = (): boolean => {
+    const tokenTimestamp = localStorage.getItem('google_token_timestamp');
+    if (!tokenTimestamp) return true;
+    
+    const tokenTime = parseInt(tokenTimestamp);
+    const currentTime = Date.now();
+    const oneHour = 60 * 60 * 1000;
+    
+    return (currentTime - tokenTime) > (50 * 60 * 1000); // Consider expired after 50 minutes
+  };
 
-  const interval = setInterval(() => {
+  // Token management and OAuth callback
+  useEffect(() => {
+    // Check for stored access token
+    const token = localStorage.getItem('google_access_token');
+    if (token) {
+      setAccessToken(token);
+    }
+
+    // Handle OAuth callback
+    const urlParams = new URLSearchParams(window.location.search);
+    const authStatus = urlParams.get('google_auth');
+    const tokenFromUrl = urlParams.get('access_token');
+    const refreshTokenFromUrl = urlParams.get('refresh_token');
+    const error = urlParams.get('error');
+
+    if (tokenFromUrl && authStatus === 'success') {
+      // Store both tokens and timestamp
+      localStorage.setItem('google_access_token', tokenFromUrl);
+      localStorage.setItem('google_token_timestamp', Date.now().toString());
+      if (refreshTokenFromUrl) {
+        localStorage.setItem('google_refresh_token', refreshTokenFromUrl);
+      }
+      setAccessToken(tokenFromUrl);
+      setSyncStatus('success');
+      
+      // Remove URL parameters
+      window.history.replaceState({}, '', window.location.pathname);
+      
+      // Don't auto-sync immediately - wait for initial load
+      console.log('OAuth successful, waiting for initial load...');
+    }
+
+    if (error) {
+      setSyncStatus('error');
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
+
+  // Manual sync function
+  const handleManualSync = async () => {
+    // Check sync cooldown
+    if (!canSync()) {
+      console.log('Sync cooldown active, skipping...');
+      return;
+    }
+
+    // Prevent multiple simultaneous syncs
+    if (isSyncing) {
+      console.log('Sync already in progress, skipping...');
+      return;
+    }
+
+    let currentAccessToken = accessToken;
+
+    // Check if we have a token
+    if (!currentAccessToken) {
+      const storedToken = localStorage.getItem('google_access_token');
+      if (!storedToken) {
+        alert('Please connect Google Tasks first');
+        return;
+      }
+      currentAccessToken = storedToken;
+      setAccessToken(storedToken);
+    }
+
+    setIsSyncing(true);
+    setSyncStatus('syncing');
+    
+    try {
+      const response = await fetch('/api/google-tasks/sync', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ accessToken: currentAccessToken }),
+      });
+
+      if (response.status === 401) {
+        // Token expired, try to refresh
+        console.log('Token expired, attempting refresh...');
+        const newToken = await refreshAccessToken();
+        
+        if (newToken) {
+          // Retry sync with new token
+          const retryResponse = await fetch('/api/google-tasks/sync', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ accessToken: newToken }),
+          });
+
+          if (retryResponse.ok) {
+            const results = await retryResponse.json();
+            await handleSyncSuccess(results);
+          } else {
+            throw new Error('Sync failed after token refresh');
+          }
+        } else {
+          throw new Error('Token refresh failed');
+        }
+      } else if (response.ok) {
+        const results = await response.json();
+        await handleSyncSuccess(results);
+      } else {
+        throw new Error('Sync failed');
+      }
+    } catch (error) {
+      console.error('Sync error:', error);
+      setSyncStatus('error');
+      
+      if (error instanceof Error && error.message.includes('401')) {
+        alert('❌ Authentication failed. Please reconnect Google Tasks.');
+        handleDisconnect();
+      } else {
+        alert('❌ Sync failed. Please try again.');
+      }
+    } finally {
+      setIsSyncing(false);
+      setLastSyncTime(Date.now());
+      setTimeout(() => setSyncStatus('idle'), 3000);
+    }
+  };
+
+  // Helper function for sync success
+  const handleSyncSuccess = async (results: any) => {
+    setLastSync(new Date());
+    setSyncStatus('success');
+    
+    // Refresh tasks after sync
+    await fetchTasks();
+    
+    console.log('Sync completed:', results);
+    
+    // Show detailed results only for manual syncs
+    if (results.created > 0 || results.updated > 0 || results.deleted > 0) {
+      alert(`🔄 Sync Completed!
+  ✅ Created: ${results.created}
+  🔄 Updated: ${results.updated}  
+  🗑️ Deleted: ${results.deleted}
+  ⚡ Conflicts: ${results.conflicts}`);
+    }
+  };
+
+  // Disconnect Google Tasks
+  const handleDisconnect = () => {
+    localStorage.removeItem('google_access_token');
+    localStorage.removeItem('google_refresh_token');
+    localStorage.removeItem('google_token_timestamp');
+    setAccessToken(null);
+    setLastSync(null);
+    setSyncStatus('idle');
+    console.log('Disconnected from Google Tasks');
+  };
+
+  // Auto-sync when tasks actually change (debounced)
+  useEffect(() => {
+    // Don't sync on initial load or if no access token
+    if (!initialLoadComplete || !accessToken || tasks.length === 0) {
+      console.log('Skipping auto-sync - conditions not met');
+      return;
+    }
+    
+    // Only sync if we're past the cooldown period
+    if (!canSync()) {
+      console.log('Skipping auto-sync - cooldown active');
+      return;
+    }
+
+    console.log('Tasks changed, auto-syncing...');
     handleManualSync();
-  }, 5 * 60 * 1000);
+  }, [debouncedTasks, accessToken, initialLoadComplete]);
 
-  return () => clearInterval(interval);
-}, [accessToken]);
+  // Initial sync when component mounts with access token
+  useEffect(() => {
+    if (accessToken && initialLoadComplete) {
+      console.log('Initial sync after load...');
+      // Small delay to ensure everything is ready
+      setTimeout(() => handleManualSync(), 2000);
+    }
+  }, [accessToken, initialLoadComplete]);
 
-// Disconnect Google Tasks
-const handleDisconnect = () => {
-  localStorage.removeItem('google_access_token');
-  setAccessToken(null);
-  setLastSync(null);
-};
+  // Periodic sync (less frequent)
+  useEffect(() => {
+    if (!accessToken || !initialLoadComplete) return;
+
+    // Sync every 10 minutes, but check token first
+    const interval = setInterval(() => {
+      if (isTokenExpired()) {
+        console.log('Token likely expired, refreshing...');
+        refreshAccessToken().then(newToken => {
+          if (newToken) {
+            console.log('Token refreshed, periodic syncing...');
+            handleManualSync();
+          } else {
+            console.log('Token refresh failed, cannot periodic sync');
+          }
+        });
+      } else {
+        console.log('Periodic sync with Google Tasks...');
+        handleManualSync();
+      }
+    }, 10 * 60 * 1000); // 10 minutes
+
+    return () => clearInterval(interval);
+  }, [accessToken, initialLoadComplete]);
+
   // --- Event Handlers ---
 
   const handleAddTask = async (e: React.FormEvent) => {
@@ -412,6 +579,9 @@ const handleDisconnect = () => {
         setTasks(prev => [newTask, ...prev]);
         setNewTaskName("");
         setIsTaskModalOpen(false);
+        
+        // Don't trigger immediate sync - let debounce handle it
+        console.log('Task created, will sync via debounce...');
       } else {
         console.error('Failed to create task');
       }
@@ -438,6 +608,9 @@ const handleDisconnect = () => {
         setTasks(prev => prev.map(t => t.id === editingTask.id ? updatedTask : t));
         setIsTaskModalOpen(false);
         setEditingTask(null);
+        
+        // Don't trigger immediate sync - let debounce handle it
+        console.log('Task updated, will sync via debounce...');
       } else {
         console.error('Failed to update task');
       }
@@ -458,6 +631,9 @@ const handleDisconnect = () => {
         setTasks(prev => prev.filter(t => t.id !== editingTask.id));
         setIsDeleteModalOpen(false);
         setEditingTask(null);
+        
+        // Don't trigger immediate sync - let debounce handle it
+        console.log('Task deleted, will sync via debounce...');
       } else {
         console.error('Failed to delete task');
       }
@@ -470,7 +646,11 @@ const handleDisconnect = () => {
     const task = tasks.find(t => t.id === taskId);
     if (!task) return;
 
-    const updatedTask = { ...task, isComplete: !task.isComplete };
+    const updatedTask = { 
+      ...task, 
+      isComplete: !task.isComplete,
+      completedPomodoros: !task.isComplete ? task.estimatedPomodoros : 0
+    };
     
     try {
       const response = await fetch(`/api/tasks/${taskId}`, {
@@ -484,6 +664,9 @@ const handleDisconnect = () => {
       if (response.ok) {
         const result = await response.json();
         setTasks(prev => prev.map(t => t.id === taskId ? result : t));
+        
+        // Don't trigger immediate sync - let debounce handle it
+        console.log('Task completion toggled, will sync via debounce...');
       } else {
         console.error('Failed to update task');
       }
@@ -503,6 +686,44 @@ const handleDisconnect = () => {
     setTimerMode('focus');
     setIsTimerModalOpen(true);
     setIsTimerRunning(true);
+  };
+
+  const handlePomodoroComplete = async (taskId: number) => {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+
+    const updatedTask = { 
+      ...task, 
+      completedPomodoros: task.completedPomodoros + 1,
+      isComplete: (task.completedPomodoros + 1) >= task.estimatedPomodoros
+    };
+    
+    try {
+      const response = await fetch(`/api/tasks/${taskId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updatedTask),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        setTasks(prev => prev.map(t => t.id === taskId ? result : t));
+        
+        // Update selected task if it's the current one
+        if (selectedTask && selectedTask.id === taskId) {
+          setSelectedTask(result);
+        }
+        
+        // Don't trigger immediate sync - let debounce handle it
+        console.log('Pomodoro completed, will sync via debounce...');
+      } else {
+        console.error('Failed to update task pomodoros');
+      }
+    } catch (error) {
+      console.error('Error updating task pomodoros:', error);
+    }
   };
 
   const handleResumeAfterPrayer = () => {
@@ -675,44 +896,64 @@ const handleDisconnect = () => {
         <section className="col-span-12 flex flex-col gap-4 md:col-span-12 lg:col-span-12">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h1 className="text-4xl font-black tracking-tight">Today&apos;s Focus</h1>
-               <div className="flex items-center gap-2">
-                {!accessToken ? (
+            {/* Sync Status Section */}
+            <div className="flex items-center gap-2 mb-4">
+              {!accessToken ? (
+                <Button 
+                  onClick={() => window.location.href = '/api/google-tasks/auth'}
+                  variant="outline"
+                  className="flex items-center gap-2"
+                >
+                  <Icon name="waypoint" className="w-4 h-4" />
+                  Connect Google Tasks
+                </Button>
+              ) : (
+                <div className="flex items-center gap-3">
+                  {/* Sync Button with Status */}
                   <Button 
-                    onClick={() => window.location.href = '/api/google-tasks/auth'}
+                    onClick={handleManualSync}
+                    disabled={isSyncing || !canSync()}
                     variant="outline"
                     className="flex items-center gap-2"
                   >
-                    <Icon name="waypoint" className="w-4 h-4" />
-                    Connect Google Tasks
+                    {syncStatus === 'syncing' ? (
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                    ) : syncStatus === 'success' ? (
+                      <Check className="w-4 h-4 text-green-500" />
+                    ) : syncStatus === 'error' ? (
+                      <X className="w-4 h-4 text-red-500" />
+                    ) : (
+                      <RefreshCw className="w-4 h-4" />
+                    )}
+                    {isSyncing ? 'Syncing...' : 'Sync Now'}
                   </Button>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <Button 
-                      onClick={handleManualSync}
-                      disabled={isSyncing}
-                      variant="outline"
-                      className="flex items-center gap-2"
-                    >
-                      <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
-                      {isSyncing ? 'Syncing...' : 'Sync Now'}
-                    </Button>
-                    
-                    <Badge variant="secondary" className="flex items-center gap-1">
-                      <Icon name="check" className="w-3 h-3" />
-                      Connected
-                    </Badge>
-                    
-                    <Button 
-                      onClick={handleDisconnect}
-                      variant="ghost"
-                      size="sm"
-                      className="text-muted-foreground hover:text-destructive"
-                    >
-                      <Icon name="close" className="w-3 h-3" />
-                    </Button>
-                  </div>
-                )}
-              </div>
+                  
+                  {/* Connection Status */}
+                  <Badge variant="secondary" className="flex items-center gap-1">
+                    <Icon name="check" className="w-3 h-3" />
+                    Connected
+                  </Badge>
+                  
+                  {/* Last Sync Time */}
+                  {lastSync && (
+                    <span className="text-sm text-muted-foreground">
+                      Last: {lastSync.toLocaleTimeString()}
+                    </span>
+                  )}
+                  
+                  {/* Disconnect Button */}
+                  <Button 
+                    onClick={handleDisconnect}
+                    variant="ghost"
+                    size="sm"
+                    className="text-muted-foreground hover:text-destructive"
+                    title="Disconnect Google Tasks"
+                  >
+                    <Icon name="close" className="w-3 h-3" />
+                  </Button>
+                </div>
+              )}
+            </div>
             <Button onClick={openAddTaskModal}>
               <Icon name="add_circle" />
               <span className="ml-2">Add New Task</span>
