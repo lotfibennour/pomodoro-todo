@@ -19,7 +19,7 @@ export async function GET() {
     console.log('Tables:', tables);
     
     // Check tasks table structure
-    let tasksTableInfo = [];
+    let tasksTableInfo: any[] = [];
     if (tables.some((table: any) => table.name === 'tasks')) {
       tasksTableInfo = db.prepare('PRAGMA table_info(tasks)').all();
       console.log('Tasks table structure:', tasksTableInfo);
