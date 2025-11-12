@@ -32,7 +32,7 @@ export const PrayerAlertModal: React.FC<PrayerAlertModalProps> = ({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Icon name="mosque" className="text-primary" />
-            {t('prayerTime', { name: nextPrayer.name })}
+            {t('prayerTime', { name: t(nextPrayer.name.toLowerCase()) })}
           </DialogTitle>
           <DialogDescription>
             {t('timeToPray', { timerStatus: getTimerStatusText() })}

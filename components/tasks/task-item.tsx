@@ -13,19 +13,19 @@ interface TaskItemProps {
 
 export function TaskItem({ task, onUpdate, onDelete, onStartPomodoro }: TaskItemProps) {
   const [isEditing, setIsEditing] = useState(false);
-  const [editedTitle, setEditedTitle] = useState(task.title);
+  const [editedTitle, setEditedTitle] = useState(task.name);
 
   const handleToggleComplete = () => {
     onUpdate({
       ...task,
-      completed: !task.completed,
-      completedPomodoros: !task.completed ? task.estimatedPomodoros : task.completedPomodoros,
+      isComplete: !task.isComplete,
+      completedPomodoros: !task.isComplete ? task.estimatedPomodoros : task.completedPomodoros,
     });
   };
 
   const handleSaveEdit = () => {
     if (editedTitle.trim()) {
-      onUpdate({ ...task, title: editedTitle.trim() });
+      onUpdate({ ...task, name: editedTitle.trim() });
       setIsEditing(false);
     }
   };
@@ -35,7 +35,7 @@ export function TaskItem({ task, onUpdate, onDelete, onStartPomodoro }: TaskItem
     onUpdate({
       ...task,
       completedPomodoros: newCompletedPomodoros,
-      completed: newCompletedPomodoros >= task.estimatedPomodoros,
+      isComplete: newCompletedPomodoros >= task.estimatedPomodoros,
     });
   };
 
@@ -50,11 +50,11 @@ export function TaskItem({ task, onUpdate, onDelete, onStartPomodoro }: TaskItem
 
   return (
     <div className={`flex items-center gap-4 rounded-lg border border-gray-200 bg-white p-4 ${
-      task.completed ? 'opacity-60' : ''
+      task.isComplete ? 'opacity-60' : ''
     }`}>
       <input
         type="checkbox"
-        checked={task.completed}
+        checked={task.isComplete}
         onChange={handleToggleComplete}
         className="h-5 w-5 rounded border-gray-300 text-primary focus:ring-primary"
       />
@@ -73,11 +73,11 @@ export function TaskItem({ task, onUpdate, onDelete, onStartPomodoro }: TaskItem
         ) : (
           <span
             className={`text-sm font-medium ${
-              task.completed ? 'text-gray-500 line-through' : 'text-gray-800'
+              task.isComplete ? 'text-gray-500 line-through' : 'text-gray-800'
             } cursor-pointer`}
             onDoubleClick={() => setIsEditing(true)}
           >
-            {task.title}
+            {task.name}
           </span>
         )}
       </div>
@@ -95,19 +95,19 @@ export function TaskItem({ task, onUpdate, onDelete, onStartPomodoro }: TaskItem
         {onStartPomodoro && (
           <button
             onClick={() => onStartPomodoro(task)}
-            disabled={task.completed}
+            disabled={task.isComplete}
             className={`flex h-8 cursor-pointer items-center justify-center overflow-hidden rounded-md px-3 text-xs font-medium ${
-              task.completed
+              task.isComplete
                 ? 'bg-green-100 text-green-700 cursor-not-allowed'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
             }`}
           >
-            {task.completed ? 'Done' : 'Start'}
+            {task.isComplete ? 'Done' : 'Start'}
           </button>
         )}
 
         <button
-          onClick={() => onDelete(task.id)}
+          onClick={() => onDelete(String(task.id))}
           className="flex h-8 w-8 items-center justify-center rounded-md text-gray-400 hover:bg-red-50 hover:text-red-500"
         >
           <span className="material-symbols-outlined text-base">delete</span>

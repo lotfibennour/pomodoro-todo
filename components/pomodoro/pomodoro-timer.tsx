@@ -25,7 +25,7 @@ export function PomodoroTimer({ currentTask, onSessionComplete }: PomodoroTimerP
     breakDuration: 5 * 60, // 5 minutes
     onSessionComplete: () => {
       if (currentTask) {
-        onSessionComplete(currentTask.id);
+        onSessionComplete(String(currentTask.id));
       }
     },
   });
@@ -68,7 +68,7 @@ export function PomodoroTimer({ currentTask, onSessionComplete }: PomodoroTimerP
           </p>
           <h1 className="text-6xl font-bold text-gray-800">{formatTime(timeLeft)}</h1>
           <p className="mt-1 text-base text-gray-600">
-            {currentTask?.title || 'No task selected'}
+            {currentTask?.name || 'No task selected'}
           </p>
         </div>
       </div>

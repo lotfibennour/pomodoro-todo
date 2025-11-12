@@ -15,16 +15,16 @@ interface GoogleTask {
 // In your sync logic, add this check:
 function shouldUpdateGoogle(appTask: any, googleTask: GoogleTask): boolean {
   // If app was modified more recently, update Google
-  const appModified = new Date(appTask.updatedAt).getTime();
-  const googleModified = new Date(googleTask.updated).getTime();
+  const appModified = appTask && appTask.updatedAt ? new Date(appTask.updatedAt).getTime() : 0;
+  const googleModified = googleTask && googleTask.updated ? new Date(googleTask.updated).getTime() : 0;
   
   return appModified > googleModified;
 }
 
 function shouldUpdateApp(appTask: any, googleTask: GoogleTask): boolean {
   // If Google was modified more recently, update app
-  const appModified = new Date(appTask.updatedAt).getTime();
-  const googleModified = new Date(googleTask.updated).getTime();
+  const appModified = appTask && appTask.updatedAt ? new Date(appTask.updatedAt).getTime() : 0;
+  const googleModified = googleTask && googleTask.updated ? new Date(googleTask.updated).getTime() : 0;
   
   return googleModified > appModified;
 }

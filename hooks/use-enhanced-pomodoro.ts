@@ -59,7 +59,7 @@ export function useEnhancedPomodoro({
         setTimeLeft((time) => time - 1);
       }, 1000);
     } else if (isRunning && timeLeft === 0) {
-      onSessionComplete(currentTask?.id);
+      onSessionComplete(String(currentTask?.id));
       const nextSessionType = sessionType === 'focus' ? 'break' : 'focus';
       const nextDuration = nextSessionType === 'focus' ? focusDuration : breakDuration;
       

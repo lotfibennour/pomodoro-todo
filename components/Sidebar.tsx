@@ -53,10 +53,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ prayerTimes, nextPrayer, onSet
             <Icon name="check_circle" />
             <span className="ml-2">{t('home')}</span>
           </Button>
-          <Button variant="ghost" className="justify-start" onClick={onSettingsOpen}>
+          {/* <Button variant="ghost" className="justify-start" onClick={onSettingsOpen}>
             <Icon name="settings" />
             <span className="ml-2">{t('settings')}</span>
-          </Button>
+          </Button> */}
         </div>
         
         {/* Prayer Times */}

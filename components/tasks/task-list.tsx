@@ -4,7 +4,7 @@
 import { useState } from 'react';
 import { Task } from '@/types';
 import { TaskItem } from './task-item';
-import { NewTaskForm } from './new-task-form';
+// import { NewTaskForm } from './new-task-form';
 
 interface TaskListProps {
   tasks: Task[];
@@ -17,8 +17,8 @@ export function TaskList({ tasks, onTaskUpdate, onTaskCreate, onTaskDelete }: Ta
   const [filter, setFilter] = useState<'all' | 'active' | 'completed'>('all');
 
   const filteredTasks = tasks.filter((task) => {
-    if (filter === 'active') return !task.completed;
-    if (filter === 'completed') return task.completed;
+    if (filter === 'active') return !task.isComplete;
+    if (filter === 'completed') return task.isComplete;
     return true;
   });
 
@@ -26,7 +26,7 @@ export function TaskList({ tasks, onTaskUpdate, onTaskCreate, onTaskDelete }: Ta
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-4xl font-black tracking-tight">Today's Focuss</h1>
-        <NewTaskForm onSubmit={onTaskCreate} />
+        {/* <NewTaskForm onSubmit={onTaskCreate} /> */}
       </div>
 
       {/* Filters */}

@@ -112,7 +112,7 @@ export const TimerModal: React.FC<TimerModalProps> = ({
                 <Icon name="mosque" />
               </div>
               <p className="flex-1 truncate text-sm">
-                {tPrayer('nextPrayer', { name: nextPrayer.name, time: nextPrayer.time })}
+                {tPrayer('nextPrayer', { name: t(nextPrayer.name.toLowerCase()), time: nextPrayer.time })}
               </p>
             </CardContent>
           </Card>
