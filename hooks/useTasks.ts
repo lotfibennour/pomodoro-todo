@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Task } from '@/types';
+import { tauriCommands } from '@/lib/tauri-commands';
+import { isTauri } from "@tauri-apps/api/core";
+
 
 export const useTasks = () => {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -9,17 +12,22 @@ export const useTasks = () => {
   const fetchTasks = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch('/api/tasks');
+      const tasksData = await tauriCommands.getTasks();
       
-      if (response.ok) {
-        const tasksData = await response.json();
-        setTasks(tasksData);
-        
-        if (!initialLoadComplete) {
-          setInitialLoadComplete(true);
-        }
-      } else {
-        setTasks([]);
+      // Transform the data to match your existing Task type if needed
+      const transformedTasks = tasksData.map(task => ({
+        ...task,
+        estimatedPomodoros: task.estimated_pomodoros,
+        completedPomodoros: task.completed_pomodoros,
+        isComplete: task.is_complete,
+        priority: task.priority as "low" | "medium" | "high",
+        // Add any other transformations if needed
+      }));
+      
+      setTasks(transformedTasks);
+      
+      if (!initialLoadComplete) {
+        setInitialLoadComplete(true);
       }
     } catch (error) {
       console.error('Error fetching tasks:', error);
@@ -30,7 +38,9 @@ export const useTasks = () => {
   };
 
   useEffect(() => {
-    fetchTasks();
+    if (isTauri()) {
+      fetchTasks();
+    }
   }, []);
 
   return {

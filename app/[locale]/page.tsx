@@ -22,6 +22,8 @@ import { PrayerAlertModal } from '@/components/Modals/PrayerAlertModal';
 import { SettingsModal } from '@/components/Modals/SettingsModal';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import QuranPlayer from '@/components/quran-player';
+import { tauriCommands } from '@/lib/tauri-commands';
+
 
 // Types
 import { Task, TimerMode } from '@/types';
@@ -103,212 +105,209 @@ export default function App() {
   }, [nextPrayer, isTimerRunning]);
 
   // Event Handlers
-  const handleAddTask = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newTaskName.trim()) return;
+ const handleAddTask = async (e: React.FormEvent) => {
+  e.preventDefault();
+  if (!newTaskName.trim()) return;
+  
+  try {
+    const newTask = await tauriCommands.createTask(
+      newTaskName,
+      newTaskEstimatedPomodoros,
+      newTaskPriority as 'low' | 'medium' | 'high'
+    );
     
-    try {
-      const response = await fetch('/api/tasks', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: newTaskName,
-          estimatedPomodoros: newTaskEstimatedPomodoros,
-          completedPomodoros: 0,
-          isComplete: false,
-          priority: newTaskPriority as 'low' | 'medium' | 'high',
-        }),
-      });
-
-      if (response.ok) {
-        const newTask = await response.json();
-        setTasks(prev => [newTask, ...prev]);
-        setNewTaskName("");
-        setNewTaskEstimatedPomodoros(1);
-        setIsTaskModalOpen(false);
-      } else {
-        console.error('Failed to create task');
-      }
-    } catch (error) {
-      console.error('Error creating task:', error);
-    }
-  };
-
-  const handleUpdateTask = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingTask) return;
+    // Transform the response to match your Task type
+    const transformedTask = {
+      id: newTask.id,
+      name: newTask.name,
+      estimatedPomodoros: newTask.estimated_pomodoros,
+      completedPomodoros: newTask.completed_pomodoros,
+      isComplete: newTask.is_complete,
+      priority: newTask.priority as 'low' | 'medium' | 'high',
+      notes: newTask.notes,
+      createdAt: newTask.created_at,
+      updatedAt: newTask.updated_at,
+    };
     
-    try {
-      const response = await fetch(`/api/tasks/${editingTask.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editingTask),
-      });
+    setTasks(prev => [transformedTask, ...prev]);
+    setNewTaskName("");
+    setNewTaskEstimatedPomodoros(1);
+    setIsTaskModalOpen(false);
+  } catch (error) {
+    console.error('Error creating task:', error);
+  }
+};
 
-      if (response.ok) {
-        const updatedTask = await response.json();
-        setTasks(prev => prev.map(t => t.id === editingTask.id ? updatedTask : t));
-        setIsTaskModalOpen(false);
-        setEditingTask(null);
-      } else {
-        console.error('Failed to update task');
-      }
-    } catch (error) {
-      console.error('Error updating task:', error);
-    }
+const handleUpdateTask = async (e: React.FormEvent) => {
+  e.preventDefault();
+  if (!editingTask) return;
+  
+  try {
+    await tauriCommands.updateTask(
+      editingTask.id,
+      editingTask.name,
+      editingTask.estimatedPomodoros,
+      editingTask.completedPomodoros,
+      editingTask.isComplete,
+      editingTask.priority
+    );
+    
+    // Update local state directly since we're not getting the updated task back
+    setTasks(prev => prev.map(t => t.id === editingTask.id ? editingTask : t));
+    setIsTaskModalOpen(false);
+    setEditingTask(null);
+  } catch (error) {
+    console.error('Error updating task:', error);
+  }
+};
+
+const handleDeleteTask = async () => {
+  if (!editingTask) return;
+  
+  try {
+    await tauriCommands.deleteTask(editingTask.id);
+    setTasks(prev => prev.filter(t => t.id !== editingTask.id));
+    setIsDeleteModalOpen(false);
+    setEditingTask(null);
+  } catch (error) {
+    console.error('Error deleting task:', error);
+  }
+};
+
+const handleToggleTaskComplete = async (taskId: number) => {
+  const task = tasks.find(t => t.id === taskId);
+  if (!task) return;
+
+  const updatedTask = { 
+    ...task, 
+    isComplete: !task.isComplete,
+    completedPomodoros: !task.isComplete ? task.estimatedPomodoros : 0
   };
   
-  const handleDeleteTask = async () => {
-    if (!editingTask) return;
+  try {
+    await tauriCommands.updateTask(
+      updatedTask.id,
+      updatedTask.name,
+      updatedTask.estimatedPomodoros,
+      updatedTask.completedPomodoros,
+      updatedTask.isComplete,
+      updatedTask.priority
+    );
     
-    try {
-      const response = await fetch(`/api/tasks/${editingTask.id}`, {
-        method: 'DELETE',
-      });
+    // Update local state
+    setTasks(prev => prev.map(t => t.id === taskId ? updatedTask : t));
+  } catch (error) {
+    console.error('Error updating task:', error);
+  }
+};
 
-      if (response.ok) {
-        setTasks(prev => prev.filter(t => t.id !== editingTask.id));
-        setIsDeleteModalOpen(false);
-        setEditingTask(null);
-      } else {
-        console.error('Failed to delete task');
-      }
-    } catch (error) {
-      console.error('Error deleting task:', error);
-    }
+const handlePomodoroComplete = async (taskId: number) => {
+  const task = tasks.find(t => t.id === taskId);
+  if (!task) return;
+
+  const newCompletedPomodoros = task.completedPomodoros + 1;
+  const isComplete = newCompletedPomodoros >= task.estimatedPomodoros;
+
+  const updatedTask = { 
+    ...task, 
+    completedPomodoros: newCompletedPomodoros,
+    isComplete: isComplete
   };
-
-  const handleToggleTaskComplete = async (taskId: number) => {
-    const task = tasks.find(t => t.id === taskId);
-    if (!task) return;
-
-    const updatedTask = { 
-      ...task, 
-      isComplete: !task.isComplete,
-      completedPomodoros: !task.isComplete ? task.estimatedPomodoros : 0
-    };
+  
+  try {
+    await tauriCommands.updateTask(
+      updatedTask.id,
+      updatedTask.name,
+      updatedTask.estimatedPomodoros,
+      updatedTask.completedPomodoros,
+      updatedTask.isComplete,
+      updatedTask.priority
+    );
     
-    try {
-      const response = await fetch(`/api/tasks/${taskId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updatedTask),
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        setTasks(prev => prev.map(t => t.id === taskId ? result : t));
-      } else {
-        console.error('Failed to update task');
-      }
-    } catch (error) {
-      console.error('Error updating task:', error);
+    // Update local state
+    setTasks(prev => prev.map(t => t.id === taskId ? updatedTask : t));
+    
+    if (selectedTask && selectedTask.id === taskId) {
+      setSelectedTask(updatedTask);
     }
-  };
+  } catch (error) {
+    console.error('Error updating task pomodoros:', error);
+  }
+};
 
-  const handleEditTask = (task: Task) => {
-    setEditingTask({...task});
-    setIsTaskModalOpen(true);
-  };
+// These functions remain the same as they don't involve database operations
+const handleEditTask = (task: Task) => {
+  setEditingTask({...task});
+  setIsTaskModalOpen(true);
+};
 
-  const handleStartPomodoro = (task: Task) => {
-    setSelectedTask(task);
-    setTimeLeft(25 * 60);
-    setTimerMode('focus');
-    setIsTimerModalOpen(true);
+const handleStartPomodoro = (task: Task) => {
+  setSelectedTask(task);
+  setTimeLeft(25 * 60);
+  setTimerMode('focus');
+  setIsTimerModalOpen(true);
+  setIsTimerRunning(true);
+};
+
+const handleResumeAfterPrayer = () => {
+  setIsPrayerAlertOpen(false);
+  if (wasTimerRunningBeforePrayer) {
     setIsTimerRunning(true);
-  };
+    setWasTimerRunningBeforePrayer(false);
+  }
+};
 
-  const handlePomodoroComplete = async (taskId: number) => {
-    const task = tasks.find(t => t.id === taskId);
-    if (!task) return;
-
-    const newCompletedPomodoros = task.completedPomodoros + 1;
-    const isComplete = newCompletedPomodoros >= task.estimatedPomodoros;
-
-    const updatedTask = { 
-      ...task, 
-      completedPomodoros: newCompletedPomodoros,
-      isComplete: isComplete
-    };
-    
-    try {
-      const response = await fetch(`/api/tasks/${taskId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updatedTask),
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        setTasks(prev => prev.map(t => t.id === taskId ? result : t));
-        
-        if (selectedTask && selectedTask.id === taskId) {
-          setSelectedTask(result);
-        }
+const handlePomodoroControl = (action: 'toggle' | 'reset' | 'skip') => {
+  switch (action) {
+    case 'toggle':
+      setIsTimerRunning(!isTimerRunning);
+      break;
+    case 'reset':
+      if (timerMode === 'focus') {
+        setTimeLeft(25 * 60);
+      } else if (timerMode === 'shortBreak') {
+        setTimeLeft(5 * 60);
       } else {
-        console.error('Failed to update task pomodoros');
+        setTimeLeft(15 * 60);
       }
-    } catch (error) {
-      console.error('Error updating task pomodoros:', error);
-    }
-  };
-
-  const handleResumeAfterPrayer = () => {
-    setIsPrayerAlertOpen(false);
-    if (wasTimerRunningBeforePrayer) {
+      setIsTimerRunning(false);
+      break;
+    case 'skip':
+      if (timerMode === 'focus') {
+        setTimerMode('shortBreak');
+        setTimeLeft(5 * 60);
+      } else {
+        setTimerMode('focus');
+        setTimeLeft(25 * 60);
+      }
       setIsTimerRunning(true);
-      setWasTimerRunningBeforePrayer(false);
-    }
-  };
+      break;
+    default:
+      break;
+  }
+};
 
-  const handlePomodoroControl = (action: 'toggle' | 'reset' | 'skip') => {
-    switch (action) {
-      case 'toggle':
-        setIsTimerRunning(!isTimerRunning);
-        break;
-      case 'reset':
-        if (timerMode === 'focus') {
-          setTimeLeft(25 * 60);
-        } else if (timerMode === 'shortBreak') {
-          setTimeLeft(5 * 60);
-        } else {
-          setTimeLeft(15 * 60);
-        }
-        setIsTimerRunning(false);
-        break;
-      case 'skip':
-        if (timerMode === 'focus') {
-          setTimerMode('shortBreak');
-          setTimeLeft(5 * 60);
-        } else {
-          setTimerMode('focus');
-          setTimeLeft(25 * 60);
-        }
-        setIsTimerRunning(true);
-        break;
-      default:
-        break;
-    }
-  };
+const openAddTaskModal = () => {
+  setEditingTask(null);
+  setNewTaskName("");
+  setNewTaskPriority('medium');
+  setNewTaskEstimatedPomodoros(1);
+  setIsTaskModalOpen(true);
+};
 
-  const openAddTaskModal = () => {
-    setEditingTask(null);
-    setNewTaskName("");
-    setNewTaskPriority('medium');
-    setNewTaskEstimatedPomodoros(1);
-    setIsTaskModalOpen(true);
-  };
+const openDeleteModal = (task: Task) => {
+  setEditingTask(task);
+  setIsDeleteModalOpen(true);
+};
 
-  const openDeleteModal = (task: Task) => {
-    setEditingTask(task);
-    setIsDeleteModalOpen(true);
-  };
-
-  const handleConnectGoogle = () => {
-    window.location.href = '/api/google-tasks/auth';
-  };
-
+// For Google Tasks integration, you'll need to handle this differently in Tauri
+const handleConnectGoogle = () => {
+  // In Tauri, you might need to open a system browser or handle OAuth differently
+  // This will need to be implemented in Rust
+  console.log('Google Tasks integration needs Tauri implementation');
+  // For now, you can disable this or show a message
+  alert('Google Tasks integration is not available in the desktop app yet');
+};
   if (isLoading) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-background">

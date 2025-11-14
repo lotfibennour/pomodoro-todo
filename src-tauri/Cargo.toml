@@ -1,0 +1,23 @@
+[package]
+name = "prayerflow"
+version = "1.0.0"
+description = "Pomodoro timer with prayer time integration"
+authors = ["Your Name"]
+edition = "2021"
+rust-version = "1.70"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["devtools"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1.40", features = ["full"] }
+rusqlite = { version = "0.31", features = ["bundled"] }
+
+tauri-plugin-fs = "2"
+tauri-plugin-shell = "2"
+
+[features]
+default = []
