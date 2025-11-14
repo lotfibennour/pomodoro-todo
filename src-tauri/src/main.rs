@@ -5,10 +5,12 @@
 
 use tauri::{
     Builder, State, Manager,
-    menu::{MenuBuilder, MenuItemBuilder, PredefinedMenuItem, SubmenuBuilder, MenuEvent},
+    menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder},
 };
+use tauri_plugin_shell::ShellExt;
 use rusqlite::{Connection, Result};
 use std::sync::Mutex;
+use std::net::TcpListener;
 use serde::Serialize;
 
 // Database setup
@@ -24,6 +26,15 @@ struct Task {
 }
 
 struct DbState(Mutex<Connection>);
+
+// Find an available port
+fn find_available_port() -> u16 {
+    TcpListener::bind("127.0.0.1:0")
+        .expect("Failed to bind to a port")
+        .local_addr()
+        .expect("Failed to get local address")
+        .port()
+}
 
 fn main() {
     // Initialize database
@@ -86,6 +97,132 @@ fn main() {
                     _ => {}
                 }
             });
+
+            // Get the main window
+            let window = app.get_webview_window("main").unwrap();
+            
+            #[cfg(debug_assertions)]
+            {
+                // In dev mode, just use the Next.js dev server
+                println!("🔧 Development mode - using dev server at localhost:3000");
+                window.eval("window.location.replace('http://localhost:3000')")?;
+            }
+            
+            #[cfg(not(debug_assertions))]
+            {
+                println!("🚀 Production mode - starting bundled Node.js server");
+                
+                let port = find_available_port();
+                println!("📡 Using port: {}", port);
+                
+                // Get resource paths
+                let resource_dir = app.path().resource_dir()
+                    .expect("Failed to get resource directory");
+                
+                // Determine the correct binary name based on target triple
+                let target_triple = if cfg!(all(target_os = "windows", target_arch = "x86_64")) {
+                    "x86_64-pc-windows-msvc"
+                } else if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
+                    "aarch64-apple-darwin"
+                } else if cfg!(all(target_os = "macos", target_arch = "x86_64")) {
+                    "x86_64-apple-darwin"
+                } else if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
+                    "x86_64-unknown-linux-gnu"
+                } else {
+                    "unknown"
+                };
+                
+                let binary_name = if cfg!(target_os = "windows") {
+                    format!("node-{}.exe", target_triple)
+                } else {
+                    format!("node-{}", target_triple)
+                };
+                
+                let node_binary = resource_dir.join("binaries").join(&binary_name);
+                
+                let server_script = resource_dir
+                    .join("resources")
+                    .join("nextjs-app")
+                    .join("server.js");
+                
+                println!("🔍 Node binary path: {:?}", node_binary);
+                println!("🔍 Server script path: {:?}", server_script);
+                
+                // Verify files exist
+                if !node_binary.exists() {
+                    eprintln!("❌ ERROR: Node binary not found at {:?}", node_binary);
+                    return Err("Node binary not found".into());
+                }
+                
+                if !server_script.exists() {
+                    eprintln!("❌ ERROR: Server script not found at {:?}", server_script);
+                    return Err("Server script not found".into());
+                }
+                
+                // Clone values before moving into async block
+                let app_handle = app.handle().clone();
+                let window_clone = window.clone();
+                let server_script_str = server_script.to_str().unwrap().to_string();
+                let port_str = port.to_string();
+                
+                tauri::async_runtime::spawn(async move {
+                    println!("⚡ Spawning Node.js process...");
+                    
+                    // Get shell from app handle
+                    let shell = app_handle.shell();
+                    
+                    // Use just "node" - Tauri will automatically append the target triple
+                    let sidecar_command = shell
+                        .sidecar("node")
+                        .expect("Failed to create sidecar command")
+                        .args([
+                            &server_script_str,
+                            &port_str
+                        ]);
+                    
+                    match sidecar_command.spawn() {
+                        Ok((mut rx, _child)) => {
+                            println!("✅ Node.js server started successfully");
+                            
+                            // Monitor output
+                            tauri::async_runtime::spawn(async move {
+                                while let Some(event) = rx.recv().await {
+                                    match event {
+                                        tauri_plugin_shell::process::CommandEvent::Stdout(line) => {
+                                            println!("📤 [Node.js]: {}", 
+                                                String::from_utf8_lossy(&line));
+                                        }
+                                        tauri_plugin_shell::process::CommandEvent::Stderr(line) => {
+                                            eprintln!("⚠️  [Node.js Error]: {}", 
+                                                String::from_utf8_lossy(&line));
+                                        }
+                                        tauri_plugin_shell::process::CommandEvent::Terminated(status) => {
+                                            eprintln!("🛑 Node.js process terminated: {:?}", status);
+                                            break;
+                                        }
+                                        _ => {}
+                                    }
+                                }
+                            });
+                            
+                            // Wait for server to be ready
+                            println!("⏳ Waiting for server to start...");
+                            std::thread::sleep(std::time::Duration::from_secs(3));
+                            
+                            // Navigate to the server
+                            let url = format!("http://localhost:{}", port);
+                            println!("🌐 Navigating to: {}", url);
+                            
+                            window_clone
+                                .eval(&format!("window.location.replace('{}')", url))
+                                .expect("Failed to navigate to server");
+                        }
+                        Err(e) => {
+                            eprintln!("❌ Failed to spawn Node.js server: {}", e);
+                        }
+                    }
+                });
+            }
 
             Ok(())
         })

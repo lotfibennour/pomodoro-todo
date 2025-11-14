@@ -10,7 +10,11 @@ export const usePrayerTimes = () => {
     Maghrib: '18:00',
     Isha: '20:00'
   });
-  const [nextPrayer, setNextPrayer] = useState<NextPrayer>({ name: 'Fajr', time: '06:00' });
+  const [nextPrayer, setNextPrayer] = useState<NextPrayer>({ 
+    name: 'Fajr', 
+    time: '06:00',
+    isTomorrow: false 
+  });
 
   const getNextPrayerTime = (prayerTimes: PrayerTimes): NextPrayer | null => {
     const now = new Date();
@@ -31,15 +35,18 @@ export const usePrayerTimes = () => {
       if (prayerMinutes > currentMinutes) {
         return { 
           name: prayerName, 
-          time: timeString 
+          time: timeString,
+          isTomorrow: false
         };
       }
     }
 
+    // If no prayer is left today, return Fajr for tomorrow
     if (prayerTimes.Fajr) {
       return { 
-        name: 'Fajr (Tomorrow)', 
-        time: prayerTimes.Fajr
+        name: 'Fajr', 
+        time: prayerTimes.Fajr,
+        isTomorrow: true
       };
     }
 
@@ -60,7 +67,11 @@ export const usePrayerTimes = () => {
     };
     
     setPrayerTimes(mockPrayerTimes);
-    setNextPrayer(getNextPrayerTime(mockPrayerTimes) || { name: 'Fajr', time: '06:00' });
+    setNextPrayer(getNextPrayerTime(mockPrayerTimes) || { 
+      name: 'Fajr', 
+      time: '06:00',
+      isTomorrow: false 
+    });
   }, []);
 
   return {

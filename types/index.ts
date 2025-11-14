@@ -59,6 +59,8 @@ export interface PrayerTimes {
 export interface NextPrayer {
   name: string;
   time: string;
+  isTomorrow?: boolean;
+
 }
 
 export type TimerMode = 'focus' | 'shortBreak' | 'longBreak';

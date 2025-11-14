@@ -45,7 +45,9 @@
     "timerPaused": "متوقف مؤقتاً",
     "timerStopped": "متوقف بالفعل",
     "dismiss": "تجاهل",
-    "resumeTimer": "استئناف المؤقت"
+    "resumeTimer": "استئناف المؤقت",
+    "tomorrow": "غداً",
+    "fajr (tomorrow)": "الفجر (غداً)"
   },
   "timer": {
     "pomodoroTimer": "مؤقت البومودورو",

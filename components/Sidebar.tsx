@@ -26,7 +26,18 @@ export const Sidebar: React.FC<SidebarProps> = ({ prayerTimes, nextPrayer, onSet
     }
   };
 
-  const getPrayerName = (prayer: string) => {
+  const getPrayerName = (prayer: string, isTomorrow: boolean = false) => {
+    const prayerKey = prayer.toLowerCase();
+    
+    if (isTomorrow && prayer === 'Fajr') {
+      // Try to get the "tomorrow" translation, fallback to regular + "(Demain)"
+      try {
+        return tPrayer('fajr (tomorrow)');
+      } catch {
+        return `${tPrayer('fajr')} (${t('tomorrow')})`;
+      }
+    }
+    
     switch (prayer) {
       case 'Fajr': return tPrayer('fajr');
       case 'Dhuhr': return tPrayer('dhuhr');
@@ -35,6 +46,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ prayerTimes, nextPrayer, onSet
       case 'Isha': return tPrayer('isha');
       default: return prayer;
     }
+  };
+
+  const isCurrentPrayer = (prayer: string) => {
+    return nextPrayer.name === prayer && !nextPrayer.isTomorrow;
+  };
+
+  const isNextPrayerTomorrow = (prayer: string) => {
+    return nextPrayer.name === prayer && nextPrayer.isTomorrow;
   };
 
   return (
@@ -69,7 +88,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ prayerTimes, nextPrayer, onSet
               <div 
                 key={prayer}
                 className={`flex items-center gap-3 rounded-lg px-3 py-2 ${
-                  nextPrayer.name === prayer 
+                  isCurrentPrayer(prayer)
                     ? 'bg-primary/10 text-primary' 
                     : 'text-muted-foreground'
                 }`}
@@ -79,25 +98,35 @@ export const Sidebar: React.FC<SidebarProps> = ({ prayerTimes, nextPrayer, onSet
                   className="text-xl" 
                 />
                 <p className="flex-1 text-sm font-medium">{getPrayerName(prayer)}</p>
-                <span className={`text-xs ${nextPrayer.name === prayer ? 'font-semibold' : 'text-muted-foreground'}`}>
+                <span className={`text-xs ${isCurrentPrayer(prayer) ? 'font-semibold' : 'text-muted-foreground'}`}>
                   {time}
                 </span>
               </div>
             ))}
+            
+            {/* Show "Next Prayer: Fajr (Tomorrow)" if applicable */}
+            {nextPrayer.isTomorrow && (
+              <div className="mt-2 border-t pt-2">
+                <div className="flex items-center gap-3 rounded-lg bg-primary/10 px-3 py-2 text-primary">
+                  <Icon 
+                    name={getPrayerIcon(nextPrayer.name)} 
+                    className="text-xl" 
+                  />
+                  <p className="flex-1 text-sm font-medium">
+                    {getPrayerName(nextPrayer.name, true)}
+                  </p>
+                  <span className="text-xs font-semibold">
+                    {nextPrayer.time}
+                  </span>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
 
       {/* User Profile Section */}
-      <CardFooter className="flex flex-col gap-1 border-t p-4">
-        <div className="flex items-center gap-3 p-3">
-          <img className="size-10 rounded-full" src="https://placehold.co/100x100/E2E8F0/4A5568?text=A" alt="User avatar" />
-          <div className="flex flex-col">
-            <h1 className="text-base font-medium">Aisha Khan</h1>
-            <p className="text-sm font-normal text-muted-foreground">aisha.k@email.com</p>
-          </div>
-        </div>
-      </CardFooter>
+
     </Card>
   );
 };

@@ -45,7 +45,10 @@
     "timerPaused": "paused",
     "timerStopped": "already stopped",
     "dismiss": "Dismiss",
-    "resumeTimer": "Resume Timer"
+    "resumeTimer": "Resume Timer",
+    "tomorrow": "Tomorrow",
+    "fajr (tomorrow)": "Fajr (Tomorrow)"
+
   },
   "timer": {
     "pomodoroTimer": "Pomodoro Timer",
@@ -55,7 +58,12 @@
     "pause": "Pause",
     "play": "Play",
     "reset": "Reset",
-    "skip": "Skip"
+    "skip": "Skip",
+    "fajr": "Fajr",
+    "dhuhr": "Dhuhr",
+    "asr": "Asr",
+    "maghrib": "Maghrib",
+    "isha": "Isha"
   },
   "sync": {
     "connectGoogle": "Connect Google Tasks",

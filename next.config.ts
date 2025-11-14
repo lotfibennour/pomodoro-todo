@@ -2,14 +2,14 @@ import {NextConfig} from 'next';
 import createNextIntlPlugin from 'next-intl/plugin';
  
 const nextConfig: NextConfig = {
-    output: 'export',
+    output: 'standalone',
     reactCompiler: true,
     trailingSlash: true,
-    distDir: 'out',
+    // Remove distDir - standalone mode uses .next directory
+    // distDir: 'out', // ❌ REMOVE THIS LINE
     images: {
         unoptimized: true
     },
-    // Disable server-side features that won't work in Tauri
     experimental: {
     },
 };
